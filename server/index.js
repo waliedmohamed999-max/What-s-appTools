@@ -18,13 +18,11 @@ const campaignPlanStore = require('./campaignPlanStore');
 const metaAuth = require('./metaAuth');
 const metaPublish = require('./metaPublish');
 const auth = require('./auth');
-const cookies = require('./cookies');
 const templateStore = require('./templateStore');
 const sendHistory = require('./sendHistory');
 const contactListStore = require('./contactListStore');
 
 const app = express();
-const authAttempts = new Map();
 
 app.disable('x-powered-by');
 app.set('trust proxy', config.TRUST_PROXY ? 1 : false);
@@ -49,30 +47,10 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-function limitAuthAttempts(req, res, next) {
-  const now = Date.now();
-  if (authAttempts.size > 1000) {
-    for (const [attemptKey, attempt] of authAttempts) {
-      if (attempt.resetAt <= now || authAttempts.size > 1000) authAttempts.delete(attemptKey);
-    }
-  }
-  const key = req.ip;
-  const current = authAttempts.get(key);
-  const entry = !current || current.resetAt <= now ? { count: 0, resetAt: now + 15 * 60 * 1000 } : current;
-  entry.count += 1;
-  authAttempts.set(key, entry);
-  if (entry.count > 20) {
-    res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
-    return res.status(429).json({ error: 'محاولات كثيرة، حاول لاحقاً / Too many attempts; try again later' });
-  }
-  next();
-}
-
+// DMS is a single-owner toolkit with no login screen: every request is attributed to
+// the one auto-provisioned owner account instead of a session cookie.
 function requireAuth(req, res, next) {
-  const token = cookies.getSessionToken(req);
-  const user = auth.getUserBySessionToken(token);
-  if (!user) return res.status(401).json({ error: 'يجب تسجيل الدخول / Login required' });
-  req.user = user;
+  req.user = auth.getOrCreateOwner();
   next();
 }
 
@@ -235,8 +213,7 @@ app.get('/api/config', (req, res) => {
     maxDelayMs: config.MAX_DELAY_MS,
     batchSize: config.BATCH_SIZE,
     batchPauseMs: config.BATCH_PAUSE_MS,
-    maxValidNumbers: config.MAX_VALID_NUMBERS,
-    ownerSetupTokenRequired: !auth.hasUsers() && Boolean(config.OWNER_SETUP_TOKEN)
+    maxValidNumbers: config.MAX_VALID_NUMBERS
   });
 });
 
@@ -262,65 +239,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.post('/api/auth/register', limitAuthAttempts, (req, res) => {
-  try {
-    const hasUsers = auth.hasUsers();
-    if (hasUsers) {
-      return res.status(403).json({
-        error: 'تم إنشاء حساب مالك DMS بالفعل / The DMS owner account has already been created'
-      });
-    }
-    if (!hasUsers && config.OWNER_SETUP_TOKEN) {
-      const supplied = Buffer.from(String(req.body.ownerSetupToken || ''));
-      const expected = Buffer.from(config.OWNER_SETUP_TOKEN);
-      if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
-        return res.status(403).json({
-          error: 'رمز إعداد المالك غير صحيح / Invalid owner setup token'
-        });
-      }
-    }
-    if (!hasUsers && process.env.NODE_ENV === 'production' && !config.OWNER_SETUP_TOKEN) {
-      return res.status(503).json({
-        error: 'اضبط OWNER_SETUP_TOKEN قبل إنشاء المالك / Configure OWNER_SETUP_TOKEN before creating the owner account'
-      });
-    }
-    const user = auth.registerUser(req.body.email, req.body.password);
-    const { token } = auth.createSession(user.id);
-    cookies.setSessionCookie(res, token, req);
-    res.json({ user });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.post('/api/auth/login', limitAuthAttempts, (req, res) => {
-  try {
-    const user = auth.loginUser(req.body.email, req.body.password);
-    const { token } = auth.createSession(user.id);
-    cookies.setSessionCookie(res, token, req);
-    res.json({ user });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  auth.deleteSession(cookies.getSessionToken(req));
-  cookies.clearSessionCookie(res, req);
-  res.json({ ok: true });
-});
-
-app.get('/api/auth/me', (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  const user = auth.getUserBySessionToken(cookies.getSessionToken(req));
-  res.json({ user });
-});
-
-// Everything below this point is private. DMS is intentionally a single-owner toolkit.
-app.use('/api', (req, res, next) => {
-  if (req.path === '/meta/callback') return next();
-  return requireAuth(req, res, next);
-});
+// DMS is a single-owner toolkit with no login screen: every request below is attributed
+// to the one auto-provisioned owner account (see requireAuth / auth.getOrCreateOwner).
+app.use('/api', requireAuth);
 
 app.get('/api/status', (req, res) => {
   res.set('Cache-Control', 'no-store');

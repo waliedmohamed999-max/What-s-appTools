@@ -37,10 +37,10 @@ landing page describing the tool. Click **"افتح الأداة / Open the Tool
 
 If port 3000 is already used by something else on your machine, set `PORT` in `.env` to a free port.
 
-On a fresh local installation, open `/register` and create the owner account first. DMS blocks
-additional registrations by default, then requires that account for WhatsApp, uploads, reports,
-campaign data, and content tools. Production deployments also require the `OWNER_SETUP_TOKEN`
-value during this first registration, preventing a stranger from claiming a newly deployed server.
+There is no login screen. DMS is a single-owner toolkit meant to run privately (locally, on your own
+VPS, or behind your own access control) — every request is attributed to one auto-provisioned owner
+account under the hood, but nothing in the UI ever asks for credentials. Don't expose a deployment's
+URL publicly: anyone who can reach it can send WhatsApp messages from your connected number.
 
 ## Production deployment
 
@@ -56,14 +56,11 @@ The included `Dockerfile` serves both the React frontend and Express API from on
 docker build -t dms .
 docker volume create dms-storage
 docker run -d --name dms -p 3000:3000 \
-  -e OWNER_SETUP_TOKEN=replace-with-a-long-random-value \
   -v dms-storage:/var/lib/dms dms
 ```
 
-The included `render.yaml` is ready for a Render Blueprint with a persistent disk and generates
-`OWNER_SETUP_TOKEN` for you. Copy that generated value from the Render environment page when you
-create the first owner. A VPS or another container platform works too; keep the process running and
-mount `/var/lib/dms` persistently.
+The included `render.yaml` is ready for a Render Blueprint with a persistent disk. A VPS or another
+container platform works too; keep the process running and mount `/var/lib/dms` persistently.
 
 Render persistent disks require an always-on paid service; the free/sleeping service is not suitable
 for Chromium, WhatsApp sessions, SQLite, or uploaded media. Review the provider's price before
@@ -78,11 +75,9 @@ creating the service.
 `vercel.json` now builds the frontend and rewrites all React routes. If `DMS_API_BASE_URL` is not
 set, the UI clearly reports that the backend is not connected instead of displaying an empty QR box.
 
-This split-origin mode relies on a cross-site session cookie, which browsers such as Safari on iPhone
-may block. For phones, prefer the complete container URL. The other reliable option is to leave
-`DMS_API_BASE_URL` empty and add Vercel external rewrites for `/api/:path*` and
-`/uploads/:path*` to the deployed backend URL, before the existing React rewrites; this keeps
-browser requests and cookies on the visible Vercel origin.
+Since there's no login/session cookie, split-origin mode has no browser cross-site cookie caveats to
+worry about — it's a plain cross-origin API call. Note the security tradeoff from "Access model"
+above still applies: whoever can reach the Vercel URL can reach the backend's write endpoints too.
 
 ## First run — connecting WhatsApp
 
@@ -195,7 +190,6 @@ or small-business use, which is exactly what the disclaimer in the UI footer say
 | `FRONTEND_ORIGINS` | *(empty)* | Comma-separated frontend origins allowed to call a separate backend |
 | `PUBLIC_APP_URL` | first frontend origin | Browser URL used after Meta OAuth redirects |
 | `TRUST_PROXY` | `false` | Trust one reverse proxy for client IP/HTTPS detection; Render sets this automatically |
-| `OWNER_SETUP_TOKEN` | *(empty)* | Secret required for the first registration; mandatory in production |
 | `DMS_DISABLE_WHATSAPP` | `false` | Disable Chromium/WhatsApp only for tests or diagnostics |
 | `META_APP_ID` / `META_APP_SECRET` | *(empty)* | Your own Meta app credentials — see Social Content Scheduler below |
 | `META_REDIRECT_URI` | *(empty)* | Must match a Valid OAuth Redirect URI on your Meta app |
@@ -242,31 +236,18 @@ into the form, or exported as an Excel breakdown per plan.
 
 API: `GET/POST /api/campaign-plans`, `DELETE /api/campaign-plans/:id`, `GET /api/campaign-plans/:id/export.xlsx`.
 
-## Owner account and access
+## Access model
 
-Every DMS tool now requires the signed-in owner account. This protects WhatsApp sessions, recipient
-lists, send history, uploaded media, store reports, campaign plans, and connected social accounts.
-The Content Scheduler's posts and Meta connection are additionally keyed by user ID in
-`data/app.db` (SQLite via Node's built-in `node:sqlite`).
+There is no login screen — DMS has no accounts to register or sign into. Every request is attributed
+to one auto-provisioned owner row in `data/app.db` (SQLite via Node's built-in `node:sqlite`), created
+automatically the first time the server handles a request. WhatsApp sessions, recipient lists, send
+history, uploaded media, store reports, campaign plans, and the Content Scheduler's posts and Meta
+connection are all scoped to that one owner internally, but nothing in the app ever asks who you are.
 
-- **Register** at `/register` (email + password, 8 characters minimum) or **log in** at `/login`.
-- On production, paste the server's `OWNER_SETUP_TOKEN` during the first registration. Additional
-  registration is blocked by default.
-- Sessions are a plain `HttpOnly` cookie backed by a `sessions` table (30-day expiry) — no external
-  auth provider, no third-party dependency.
-- Passwords are hashed with Node's built-in `crypto.scrypt` (salted, per-user) — never stored or
-  logged in plain text.
-- Visiting any protected tool while logged out redirects to `/login`, then returns to the original
-  tool after successful login.
-- Every Content Scheduler API route requires a valid session and only ever reads/writes that
-  session's own `user_id` — verified by creating two test accounts and confirming neither could see
-  or delete the other's posts.
-
-API: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
-
-DMS intentionally blocks all registrations after the owner is created because WhatsApp, lists,
-history, and campaign resources are single-owner. This also does not, by itself, let a stranger
-connect their own Facebook/Instagram account — that is a separate Meta requirement described below.
+Because of this, **DMS is meant to run somewhere only you can reach it** — locally, on a private VPS,
+or behind your own network/reverse-proxy access control. Do not put a public URL in front of it:
+anyone who can load the page can send WhatsApp messages from your connected number, read your saved
+lists/history, and use your connected Facebook/Instagram account.
 
 ## Social Content Scheduler
 
@@ -344,11 +325,9 @@ URL for each Instagram publish request; set `MEDIA_SIGNING_SECRET` explicitly or
 API: `GET /api/meta/status`, `GET /api/meta/auth` (starts login), `GET /api/meta/callback` (OAuth
 redirect target), `POST /api/meta/disconnect`, `POST /api/content/posts/:id/publish`.
 
-**Important — what letting "anyone" connect their own account actually requires:** the account
-system above means every registered user of this tool gets their *own* private Meta connection —
-that part is done and works today for logged-in users who are also registered as an
-Admin/Developer/Tester on your Meta app (step 5 above). It does **not** mean a random stranger who
-signs up can connect *their* Facebook Page yet. Meta only allows that once your app has been granted
+**Important — what "Connect" actually requires:** it only works for accounts you've added as an
+Admin/Developer/Tester on your own Meta app (step 5 above). It does **not** let a random stranger
+connect *their* Facebook Page. Meta only allows that once your app has been granted
 **Advanced Access** through **App Review** for `pages_manage_posts` and `instagram_content_publish` —
 which requires:
 - The app deployed at a real public HTTPS URL (not `localhost`)
@@ -358,8 +337,8 @@ which requires:
   on the first attempt
 
 None of that can be done on your behalf — it needs your own Meta account, your own hosted app, and
-Meta's manual review. Until it's approved, "Connect" will work for you and anyone else you add as a
-Tester on the Meta app, and fail with a permissions error for anyone else.
+Meta's manual review. Until it's approved, "Connect" will work only for accounts added as a Tester
+on the Meta app, and fail with a permissions error for anyone else.
 
 ## Project structure
 
@@ -376,9 +355,8 @@ server/
   storeAnalyzer.js             Store Analyzer: fetch + parse + category-scored audit of a URL
   storeAnalysisHistory.js       Store Analyzer: per-host analysis history + score delta
   campaignPlanStore.js           Campaign Budget Planner: CRUD over data/campaign-plans.json + Excel export
-  database.js                     SQLite setup (data/app.db) — users, sessions, meta_connections, content_posts
-  auth.js                          Register/login, password hashing (scrypt), session tokens
-  cookies.js                        Minimal cookie parse/set helpers for the session cookie
+  database.js                     SQLite setup (data/app.db) — users, meta_connections, content_posts
+  auth.js                          Auto-provisions the single owner row (no login/passwords)
   contentStore.js                    Social Content Scheduler: per-user CRUD over SQLite
   metaAuth.js                         Meta OAuth login, token exchange, Pages/IG lookup — per-user connection storage
   metaPublish.js                       Facebook Page + Instagram Graph API publish calls
@@ -389,14 +367,13 @@ public/       Served as-is by Express — this is what actually runs
               app.html, app.js, style.css = the WhatsApp Bulk Sender tool (plain JS, RTL Arabic + English)
 landing-src/  Source for the landing page (React + TypeScript + Tailwind + Vite + React Router) —
               not served directly; its build output is copied into public/
-  src/pages/    Home, Products, StoreAnalyzer, CampaignCalculator, ContentScheduler, Login, Register
-  src/components/  Shared Nav, Logo, PageShell, BackLink, RequireAuth
-  src/context/     AuthContext (current user, login/register/logout)
+  src/pages/    Home, Products, StoreAnalyzer, CampaignCalculator, ContentScheduler
+  src/components/  Shared Nav, Logo, PageShell, BackLink
 uploads/      Temporary Excel files and message/post attachments (gitignored)
 sessions/     whatsapp-web.js LocalAuth session data (gitignored)
-data/         app.db (SQLite — users, sessions, meta connections, content posts), logs.json,
+data/         app.db (SQLite — owner row, meta connections, content posts), logs.json,
               store-analyses.json, campaign-plans.json, message-templates.json, contact-lists.json
-              — all gitignored (app.db holds password hashes and live Meta access tokens)
+              — all gitignored (app.db holds live Meta access tokens)
 templates/    Sample Excel template
 ```
 

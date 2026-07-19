@@ -35,11 +35,8 @@ const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(STORAGE_DI
 
 const FRONTEND_ORIGINS = envList('FRONTEND_ORIGINS');
 const PUBLIC_APP_URL = String(process.env.PUBLIC_APP_URL || FRONTEND_ORIGINS[0] || '').replace(/\/$/, '');
-const CROSS_SITE_COOKIES = envBool('CROSS_SITE_COOKIES', FRONTEND_ORIGINS.length > 0);
-const COOKIE_SECURE = envBool('COOKIE_SECURE');
 const TRUST_PROXY = envBool('TRUST_PROXY', envBool('RENDER'));
 const DISABLE_WHATSAPP = envBool('DMS_DISABLE_WHATSAPP');
-const OWNER_SETUP_TOKEN = process.env.OWNER_SETUP_TOKEN || '';
 
 // Hard cap on valid numbers per batch. Not configurable via env on purpose -
 // this tool is for small-batch personal/business use, not mass messaging.
@@ -108,11 +105,8 @@ module.exports = {
   UPLOADS_DIR,
   FRONTEND_ORIGINS,
   PUBLIC_APP_URL,
-  CROSS_SITE_COOKIES,
-  COOKIE_SECURE,
   TRUST_PROXY,
   DISABLE_WHATSAPP,
-  OWNER_SETUP_TOKEN,
   DEFAULT_COUNTRY_CODE,
   MIN_DELAY_MS,
   MAX_DELAY_MS,

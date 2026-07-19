@@ -15,8 +15,6 @@ services:
         sync: false
       - key: FRONTEND_ORIGINS
         sync: false
-      - key: OWNER_SETUP_TOKEN
-        generateValue: true
       - key: DEFAULT_COUNTRY_CODE
         value: 966
     disk:

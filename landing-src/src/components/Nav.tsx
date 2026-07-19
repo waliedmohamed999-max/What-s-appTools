@@ -1,7 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Logo from './Logo';
-import { useAuth } from '../context/AuthContext';
 
 const NAV_LINKS: { label: string; href: string }[] = [
   { label: 'Products', href: '/products' },
@@ -11,14 +9,6 @@ const NAV_LINKS: { label: string; href: string }[] = [
 ];
 
 export default function Nav({ sticky = false }: { sticky?: boolean }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  async function handleLogout() {
-    await logout();
-    navigate('/');
-  }
-
   return (
     <nav
       className={
@@ -75,24 +65,6 @@ export default function Nav({ sticky = false }: { sticky?: boolean }) {
         <span className="sm:hidden">Tool</span>
         <span className="hidden sm:inline">Open Tool</span>
       </a>
-
-      {user ? (
-        <button
-          onClick={handleLogout}
-          title={user.email}
-          className="inline-flex items-center gap-1.5 text-[13px] sm:text-[14px] font-medium text-gray-500 hover:text-red-600 rounded-xl px-3 py-3 transition-colors duration-200 shrink-0"
-        >
-          <LogOut size={15} />
-          <span className="hidden sm:inline max-w-[120px] truncate">{user.email}</span>
-        </button>
-      ) : (
-        <Link
-          to="/login"
-          className="inline-flex items-center text-[13px] sm:text-[14px] font-medium text-gray-700 hover:text-gray-900 rounded-xl px-3 py-3 transition-colors duration-200 shrink-0"
-        >
-          Login
-        </Link>
-      )}
     </nav>
   );
 }

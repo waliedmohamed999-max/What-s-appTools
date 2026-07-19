@@ -1,16 +1,4 @@
-(async () => {
-  try {
-    const meRes = await fetch(window.DMS_API ? window.DMS_API.url('/api/auth/me') : '/api/auth/me', { cache: 'no-store' });
-    const me = await meRes.json().catch(() => ({}));
-    if (!me?.user) {
-      window.location.replace('/login?next=' + encodeURIComponent(window.location.pathname + window.location.search));
-      return;
-    }
-  } catch (_) {
-    // Auth check itself failed (offline/DNS/etc.) — fall through so the normal
-    // status polling below reports the real connection error instead of masking it.
-  }
-
+(() => {
   const state = {
     connectionStatus: 'disconnected',
     validRecipients: [],
