@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WhatsApp Bulk Sender — إرسال رسائل واتساب جماعي</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1><a href="index.html" class="home-link">←</a> WhatsApp Bulk Sender <span class="sub">إرسال رسائل واتساب جماعي</span></h1>
+      <div class="status-badge" id="statusBadge">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">جارٍ التحقق... / Checking...</span>
+      </div>
+    </header>
+
+    <main class="steps">
+
+      <!-- Step 1: Connection -->
+      <section class="card" id="step1">
+        <h2><span class="step-num">1</span> الاتصال <span class="en">Connection</span></h2>
+        <div class="step-body" id="connectionBody">
+          <div id="qrWrap" class="qr-wrap">
+            <img id="qrImage" alt="QR Code" />
+            <p class="hint">افتح واتساب على هاتفك ثم اذهب إلى: الأجهزة المرتبطة ← ربط جهاز، وامسح الرمز.<br />
+            <span class="en">Open WhatsApp on your phone → Linked devices → Link a device, then scan.</span></p>
+          </div>
+          <div id="connectedWrap" class="connected-wrap hidden">
+            <p class="ok-text">✔ متصل برقم / Connected as: <strong id="connectedNumber"></strong></p>
+            <button id="logoutBtn" class="btn btn-secondary">تسجيل الخروج / Logout</button>
+          </div>
+          <div id="waitingWrap" class="hidden">
+            <p class="hint">جارٍ تجهيز الاتصال... / Preparing connection...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 2: Upload -->
+      <section class="card disabled" id="step2">
+        <h2><span class="step-num">2</span> رفع الملف <span class="en">Upload Excel</span></h2>
+        <div class="step-body">
+          <div class="field-row template-row">
+            <a id="downloadTemplate" class="btn btn-secondary" href="/api/template/download" download>
+              تحميل نموذج Excel / Download Excel Template
+            </a>
+          </div>
+          <div class="field-row" id="contactListWrap">
+            <label>القوائم المحفوظة / Saved Lists</label>
+            <div id="contactListList" class="template-list"></div>
+          </div>
+
+          <div class="field-row">
+            <label>رمز الدولة الافتراضي / Default country code
+              <input type="text" id="countryCode" value="966" />
+            </label>
+          </div>
+          <div class="dropzone" id="dropzone">
+            <p>اسحب ملف Excel هنا أو اضغط للاختيار<br /><span class="en">Drag an Excel file here or click to browse</span></p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+          </div>
+          <div id="uploadError" class="error-box hidden"></div>
+          <div id="previewWrap" class="hidden">
+            <div class="preview-summary">
+              <div class="stat stat-ok"><span id="validCount">0</span><small>صالح / Valid</small></div>
+              <div class="stat stat-bad"><span id="invalidCount">0</span><small>غير صالح / Invalid</small></div>
+              <div class="stat stat-dup"><span id="dupCount">0</span><small>مكرر / Duplicate</small></div>
+              <div class="stat"><span id="totalCount">0</span><small>الإجمالي / Total rows</small></div>
+            </div>
+            <div class="table-wrap" id="invalidTableWrap">
+              <table id="invalidTable">
+                <thead><tr><th>الصف / Row</th><th>القيمة / Value</th><th>السبب / Reason</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="field-row">
+              <button type="button" id="saveListBtn" class="btn btn-secondary">حفظ كقائمة / Save as List</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3: Message -->
+      <section class="card disabled" id="step3">
+        <h2><span class="step-num">3</span> الرسالة <span class="en">Message</span></h2>
+        <div class="step-body">
+          <div class="field-row" id="templateListWrap">
+            <label>القوالب المحفوظة / Saved Templates</label>
+            <div id="templateList" class="template-list"></div>
+          </div>
+
+          <label>نص الرسالة (استخدم {name} لإدراج الاسم) / Message body (use {name} for the recipient's name)
+            <textarea id="messageInput" rows="5" placeholder="مرحباً {name}، ..."></textarea>
+          </label>
+
+          <div class="preview-box">
+            <strong>معاينة / Preview:</strong>
+            <p id="messagePreview" class="bubble"></p>
+          </div>
+
+          <div class="field-row">
+            <label class="file-label">
+              مرفق اختياري (صورة أو PDF) / Optional attachment (image or PDF)
+              <input type="file" id="mediaInput" accept="image/*,.pdf" />
+            </label>
+            <div id="mediaInfo" class="hint hidden"></div>
+          </div>
+
+          <div class="field-row">
+            <button type="button" id="saveTemplateBtn" class="btn btn-secondary">حفظ كقالب / Save as Template</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 4: Send -->
+      <section class="card disabled" id="step4">
+        <h2><span class="step-num">4</span> الإرسال <span class="en">Send</span></h2>
+        <div class="step-body">
+          <button id="sendBtn" class="btn btn-primary" disabled>
+            إرسال إلى <span id="sendCount">0</span> رقم / Send to <span id="sendCount2">0</span> numbers
+          </button>
+
+          <div id="progressWrap" class="hidden">
+            <div class="progress-bar-outer">
+              <div class="progress-bar-inner" id="progressBarInner"></div>
+            </div>
+            <p id="progressText">0 / 0</p>
+            <div class="preview-summary">
+              <div class="stat stat-ok"><span id="sentCount">0</span><small>تم الإرسال / Sent</small></div>
+              <div class="stat stat-bad"><span id="failedCount">0</span><small>فشل / Failed</small></div>
+              <div class="stat stat-dup"><span id="notOnWaCount">0</span><small>ليس على واتساب / Not on WhatsApp</small></div>
+            </div>
+            <button id="cancelBtn" class="btn btn-secondary">إيقاف / Cancel</button>
+          </div>
+
+          <div id="resultsWrap" class="hidden">
+            <p class="ok-text">اكتمل الإرسال / Send complete</p>
+            <a id="downloadResults" class="btn btn-secondary" href="#" download>تحميل النتائج / Download Results</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- History -->
+      <section class="card" id="historySection">
+        <h2>سجل الحملات السابقة <span class="en">Send History</span></h2>
+        <div class="step-body">
+          <div id="historyList"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="disclaimer">
+      استخدم هذه الأداة بمسؤولية ووفق سياسات واتساب — لإرسال رسمي بحجم كبير استخدم WhatsApp Business API<br />
+      <span class="en">Use this tool responsibly and in line with WhatsApp's policies — for large-scale official messaging, use the WhatsApp Business API.</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

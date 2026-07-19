@@ -1,0 +1,12 @@
+node_modules/
+landing-src/node_modules/
+landing-src/dist/
+.wwebjs_cache/
+sessions/
+uploads/*
+!uploads/.gitkeep
+data/*
+!data/.gitkeep
+.env
+*.log
+.DS_Store

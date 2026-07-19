@@ -1,0 +1,370 @@
+# WhatsApp Bulk Sender & Small Business Toolkit
+
+A small suite of self-hosted tools for small businesses, built around a Node.js/Express backend
+with a React landing page. The flagship tool sends a single message (with an optional image/PDF
+attachment) to a list of phone numbers imported from an Excel file, over a WhatsApp Web QR-paired
+session. Three more tools live alongside it on the **Products** page:
+
+| Tool | Route | What it does |
+|---|---|---|
+| WhatsApp Bulk Sender | `/app.html` | Send one message to a list of numbers from Excel |
+| Store Analyzer | `/store-analyzer` | Paste a store/website URL, get an instant SEO/quality audit with a score |
+| Campaign Budget Planner | `/campaign-calculator` | Split a marketing budget across channels, see projected clicks/leads/cost |
+| Social Content Scheduler | `/content-scheduler` | Draft and schedule social posts (with an image), ready to copy for manual posting |
+
+Built for personal / small-business use — small batches, human-like delays, no external services.
+
+> استخدم هذه الأداة بمسؤولية ووفق سياسات واتساب — لإرسال رسمي بحجم كبير استخدم WhatsApp Business API.
+> Use this tool responsibly and in line with WhatsApp's policies — for large-scale official messaging, use the WhatsApp Business API.
+
+## Requirements
+
+- Node.js 18+ (tested on Node 24)
+- A phone with WhatsApp installed, for the one-time QR scan
+- Windows/macOS/Linux — whatsapp-web.js drives a bundled headless Chromium via Puppeteer
+
+## Setup
+
+```bash
+npm install
+cp .env.example .env   # optional — defaults already work out of the box
+npm start
+```
+
+Open the printed URL (default `http://localhost:3000`) in your browser — this shows an introductory
+landing page describing the tool. Click **"افتح الأداة / Open the Tool"** to go to the actual app
+(`/app.html`), or open it directly.
+
+If port 3000 is already used by something else on your machine, set `PORT` in `.env` to a free port.
+
+## First run — connecting WhatsApp
+
+1. Step 1 on the app page (`/app.html`) shows a QR code.
+2. On your phone: **WhatsApp → Linked devices → Link a device**, then scan it.
+3. Once connected, the badge turns green and shows your WhatsApp number.
+4. The session is stored in `/sessions` (via whatsapp-web.js `LocalAuth`), so you only need
+   to scan once — restarting the server reuses the saved session.
+5. Use **Logout** on the page to clear the session and force a fresh QR scan (e.g. to switch numbers).
+
+## Expected Excel format
+
+The first sheet of the uploaded file is used. The phone column is auto-detected (case-insensitive,
+Arabic or English header), so no fixed template is required:
+
+| Accepted phone headers | Accepted name headers (optional) |
+|---|---|
+| `Phone`, `رقم`, `Mobile`, `Number`, `Tel`, `هاتف`, `جوال`, `رقم الجوال`, `رقم الهاتف` | `Name`, `اسم`, `الاسم` |
+
+Example (see `templates/sample-template.xlsx` for a ready-to-copy file):
+
+| Name           | Phone         |
+|----------------|---------------|
+| أحمد علي        | 0501234567    |
+| Sara Ahmed     | 966512345678  |
+| محمد سالم       | 0555555555    |
+
+Number normalization rules:
+- Spaces, dashes, parentheses and a leading `+` are stripped.
+- A number starting with `0` is treated as a local number and the leading `0` is replaced with
+  the default country code (`DEFAULT_COUNTRY_CODE`, default `966` for Saudi Arabia — configurable
+  per upload from the UI, or via `.env`).
+- The final number must be digits only, 10–15 digits long, otherwise the row is reported as invalid
+  with a reason (e.g. "Row 12: invalid length").
+- Duplicate numbers (after normalization) are automatically de-duplicated so the same person is
+  never messaged twice in one run.
+
+The optional `Name` column is used to personalize the message via a `{name}` placeholder
+(falls back to an empty string if there's no name for a row, or no name column at all).
+
+## Sending a message
+
+1. **Step 2** — upload the Excel file, review the valid/invalid/duplicate counts and the list of
+   rejected rows. Click **"Save as List"** to save the current recipient list under a name for reuse
+   later without re-uploading — saved lists show above the upload area; click a name to load it, `✕`
+   to delete it. Stored in `data/contact-lists.json`.
+2. **Step 3** — write the message (use `{name}` anywhere you want the recipient's name inserted),
+   optionally attach one image or PDF. A live preview is shown. Click **"Save as Template"** to save
+   the current message (and attachment, if any) under a name for reuse later — saved templates show
+   as a list above the message box; click a template's name to load it, or the `✕` to delete it.
+   Templates are stored in `data/message-templates.json` and shared locally (no login needed, same
+   as the rest of the WhatsApp tool).
+3. **Step 4** — click Send. Sending happens in the background:
+   - A random delay (`MIN_DELAY_MS`–`MAX_DELAY_MS`, default 3–8s) between messages.
+   - A longer pause (`BATCH_PAUSE_MS`, default 45s) after every `BATCH_SIZE` messages (default 20).
+   - Each number is checked with WhatsApp before sending; numbers not on WhatsApp are skipped and
+     logged as `not_on_whatsapp` instead of failing the run.
+   - Any per-message error is caught and logged — one failure never stops the batch.
+   - You can hit **Cancel** at any time; the current message finishes, then sending stops.
+4. When done, download the results as an Excel file (number, name, status, error, timestamp) with
+   **Download Results**.
+
+### Campaign history
+
+Every past send appears in the **Send History** section at the bottom of the page — total
+recipients, sent/failed/not-on-WhatsApp counts, and per-batch actions:
+- **Download** — same results Excel as above, for that specific past batch.
+- **Retry Failed** — only shown when a batch has failures; loads just the numbers that genuinely
+  failed (not the ones skipped as `not_on_whatsapp`, which retrying won't fix) straight into Step 3,
+  skipping re-upload entirely.
+
+This is computed on the fly from `data/logs.json` — no separate storage.
+
+Every send attempt is also appended to `data/logs.json` for audit purposes, independent of what's
+shown on screen.
+
+## Safety limits (not configurable away)
+
+- Hard cap of **500 valid numbers** per upload/send — this tool is for small-batch sending, not
+  mass messaging.
+- Minimum delay between messages is floored at **2 seconds** even if `MIN_DELAY_MS` is misconfigured.
+
+### On WhatsApp bans — there's no officially "safe" number
+
+This tool automates WhatsApp Web, which WhatsApp's Terms of Service don't permit for bulk/automated
+messaging regardless of volume — there's no published safe threshold because it isn't an approved
+use case at all. From community experience with this kind of automation:
+
+- **Recipient complaints/blocks are the dominant risk factor, not raw volume.** Messaging people who
+  already expect to hear from you is far safer than a cold/purchased list, even at the same size.
+- New or lightly-used numbers: stay well under 50–100 messages/day for the first few weeks.
+- Established numbers with real usage history and WhatsApp Business: some report ~200–300/day as
+  lower-risk, but this isn't guaranteed — WhatsApp's detection logic isn't public and changes.
+- The delays, batching, and 500-number cap here are conservative defaults, not a guarantee.
+
+None of this is a substitute for the WhatsApp Business API for anything beyond small-batch personal
+or small-business use, which is exactly what the disclaimer in the UI footer says.
+
+## Configuration (`.env`)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `3000` | HTTP port for the app |
+| `DEFAULT_COUNTRY_CODE` | `966` | Country code prefix used for numbers starting with `0` |
+| `MIN_DELAY_MS` | `3000` | Minimum delay between messages (floored at 2000ms) |
+| `MAX_DELAY_MS` | `8000` | Maximum delay between messages |
+| `BATCH_SIZE` | `20` | Messages sent before a longer pause |
+| `BATCH_PAUSE_MS` | `45000` | Pause duration between batches |
+| `META_APP_ID` / `META_APP_SECRET` | *(empty)* | Your own Meta app credentials — see Social Content Scheduler below |
+| `META_REDIRECT_URI` | *(empty)* | Must match a Valid OAuth Redirect URI on your Meta app |
+| `META_PUBLIC_BASE_URL` | *(empty)* | Public HTTPS URL for this server; required for Instagram publishing only |
+
+## Store Analyzer
+
+Paste a store or website URL (`/store-analyzer`). The server fetches the page itself (no API keys
+needed) and runs a heuristic audit, returning a 0–100 score broken down into four categories
+(**SEO, Technical, Trust, Social**) plus a severity-ranked list of recommendations:
+
+- `noindex` meta tag (flagged prominently — it means the page can't be found on Google at all),
+  canonical tag, structured data (Schema.org/JSON-LD), `robots.txt` presence, external script count
+- HTTPS usage, page title/meta description quality, mobile viewport tag, Open Graph tags, favicon
+- H1 heading count, image alt-text coverage, word count
+- Detected social media links and visible contact info (email/phone)
+- Detected e-commerce/CMS platform (Salla, Zid, Shopify, WooCommerce, WordPress, Wix)
+- Page size and response time
+
+Every analysis is saved to a per-site **history** (`data/store-analyses.json`); re-analyzing the
+same host shows the score delta since the last run (e.g. "+7 points since last analysis"), and the
+history list is exportable as Excel.
+
+Internal/private addresses (localhost, 127.0.0.1, private IP ranges) are rejected to avoid the
+server being used to probe your own network.
+
+API: `POST /api/store-analysis/analyze` with `{ "url": "..." }`, `GET /api/store-analysis/history`,
+`GET /api/store-analysis/history.xlsx`.
+
+## Campaign Budget Planner
+
+A budgeting/planning tool (`/campaign-calculator`) — enter a total budget, campaign duration, and
+average order value (AOV), then split the budget across channels with **per-channel** CPC and
+conversion-rate assumptions (defaults differ per channel — Google Ads costs more per click than
+TikTok, for example, which a single global assumption can't represent). It projects, per channel
+and overall: clicks, leads, cost-per-lead, **projected revenue and ROAS**, plus a **weekly budget
+pacing table** for the campaign's duration.
+
+Plans can be **named and saved** (`data/campaign-plans.json`) for later comparison, reloaded back
+into the form, or exported as an Excel breakdown per plan.
+
+API: `GET/POST /api/campaign-plans`, `DELETE /api/campaign-plans/:id`, `GET /api/campaign-plans/:id/export.xlsx`.
+
+## Accounts & multi-user access
+
+The WhatsApp tool, Store Analyzer, and Campaign Planner are still single-user/local (no login
+needed). The **Social Content Scheduler is different**: it requires an account, because its data —
+scheduled posts and connected Meta accounts — is private per person, stored in a real database
+(`data/app.db`, SQLite via Node's built-in `node:sqlite`), not one shared file.
+
+- **Register** at `/register` (email + password, 8 characters minimum) or **log in** at `/login`.
+- Sessions are a plain `HttpOnly` cookie backed by a `sessions` table (30-day expiry) — no external
+  auth provider, no third-party dependency.
+- Passwords are hashed with Node's built-in `crypto.scrypt` (salted, per-user) — never stored or
+  logged in plain text.
+- Visiting `/content-scheduler` while logged out redirects to `/login` automatically.
+- Every Content Scheduler API route requires a valid session and only ever reads/writes that
+  session's own `user_id` — verified by creating two test accounts and confirming neither could see
+  or delete the other's posts.
+
+API: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
+
+**This does not, by itself, let a stranger connect their own Facebook/Instagram account.** That's a
+separate, external requirement — see the note at the end of the Meta section below.
+
+## Social Content Scheduler
+
+Draft and schedule social media posts (`/content-scheduler`) for Instagram, Facebook, X/Twitter,
+TikTok, LinkedIn, or Snapchat — caption (with a live, platform-aware character-limit counter),
+optional image, and a scheduled date/time — private to your account (see Accounts above).
+
+- **Multi-platform compose**: select several platforms at once to create one post per platform from
+  a single caption/schedule/image.
+- **Edit** an existing post (caption, platform, schedule, or replace its image), not just its status.
+- **List or calendar view** — the calendar shows a month grid with each day's posts as colored chips;
+  clicking one opens it for editing.
+- Posts past their scheduled time and still marked "scheduled" are flagged **Overdue**; a stats bar
+  shows scheduled/due-soon/overdue counts at a glance.
+- Export the whole schedule as Excel.
+- One-click **copy caption** for any post, for pasting into a platform manually.
+
+API: `GET/POST /api/content/posts`, `PATCH/DELETE /api/content/posts/:id`,
+`GET /api/content/posts/export.xlsx`. Images are uploaded via the same `/api/media/upload` endpoint
+used by the WhatsApp tool and previewed from `/uploads/...`.
+
+### Real publishing to Facebook & Instagram
+
+For **Facebook Pages and Instagram Business accounts**, the scheduler can actually publish — no
+copy/paste needed — once you connect your own account via Facebook Login. This is a real OAuth
+integration against Meta's Graph API, not a mock.
+
+**What works today:** publishing a normal feed post (text and/or one image) to a connected Facebook
+Page, and to a connected Instagram Business account if the post has an image (Instagram's API has no
+text-only post type).
+
+**What's not built yet:** Stories, Reels, TikTok, LinkedIn, X/Twitter, and Snapchat direct
+publishing. Each of those is effectively a separate integration with its own API, its own review
+process, and — for TikTok and Snapchat especially — access that's largely restricted to approved
+partner apps. Feed publishing on Meta was the deliberate starting point; the others remain
+copy/paste-to-publish for now.
+
+**Setup — you need your own Meta app; nobody can hand you one:**
+
+1. Go to [developers.facebook.com](https://developers.facebook.com) → **My Apps** → **Create App**
+   → choose "Business" as the type.
+2. In the app dashboard, add the **Facebook Login for Business** and **Instagram Graph API**
+   products.
+3. Under **Facebook Login → Settings**, add a **Valid OAuth Redirect URI** matching exactly what
+   you'll put in `META_REDIRECT_URI` below (e.g. `http://localhost:3000/api/meta/callback`).
+4. Copy the **App ID** and **App Secret** from **Settings → Basic** into `.env`:
+   ```
+   META_APP_ID=...
+   META_APP_SECRET=...
+   META_REDIRECT_URI=http://localhost:3000/api/meta/callback
+   ```
+5. Make sure your Facebook account is added as an **Admin/Developer/Tester** under **App Roles** —
+   while the app is in Development Mode, its own admins/developers/testers can use the requested
+   permissions on their own Pages/Instagram accounts without needing Meta's full App Review. App
+   Review is only required to let *other* people use the app — for a personal/single-business tool
+   like this, you likely don't need it at all.
+6. Your Instagram account must be a **Business or Creator account linked to a Facebook Page** — a
+   personal Instagram account can't be published to via this API, that's a Meta platform rule, not
+   a limitation of this tool.
+7. Restart the server, open the Content Scheduler, and click **"Login with Facebook"** under
+   Connected Accounts.
+
+**The Instagram catch:** Instagram's publishing API doesn't accept an uploaded file directly — it
+fetches the image itself from a URL you give it. `http://localhost:...` isn't reachable from Meta's
+servers, so Instagram publishing needs `META_PUBLIC_BASE_URL` set to a real public HTTPS address
+(a quick way to get one for testing: `ngrok http 3000`, or deploy the app for real). Without it,
+Instagram publish attempts fail with a clear error telling you exactly that. **Facebook Page posts
+don't have this problem** — the image is uploaded directly, so Facebook publishing works from
+localhost with no public URL required.
+
+API: `GET /api/meta/status`, `GET /api/meta/auth` (starts login), `GET /api/meta/callback` (OAuth
+redirect target), `POST /api/meta/disconnect`, `POST /api/content/posts/:id/publish`.
+
+**Important — what letting "anyone" connect their own account actually requires:** the account
+system above means every registered user of this tool gets their *own* private Meta connection —
+that part is done and works today for logged-in users who are also registered as an
+Admin/Developer/Tester on your Meta app (step 5 above). It does **not** mean a random stranger who
+signs up can connect *their* Facebook Page yet. Meta only allows that once your app has been granted
+**Advanced Access** through **App Review** for `pages_manage_posts` and `instagram_content_publish` —
+which requires:
+- The app deployed at a real public HTTPS URL (not `localhost`)
+- A published Privacy Policy URL and Data Deletion Instructions URL, set in the app's Meta settings
+- A screencast showing each requested permission in actual use
+- Submitting for review and waiting — commonly days to a few weeks, and not guaranteed to be approved
+  on the first attempt
+
+None of that can be done on your behalf — it needs your own Meta account, your own hosted app, and
+Meta's manual review. Until it's approved, "Connect" will work for you and anyone else you add as a
+Tester on the Meta app, and fail with a permissions error for anyone else.
+
+## Project structure
+
+```
+server/
+  index.js                  Express app — routes, static files, SPA fallback for React Router
+  config.js                 Env-based configuration (delays, batch size, country code, hard caps)
+  whatsapp.js                whatsapp-web.js client (QR, status, logout)
+  excel.js                   Excel parsing, phone normalization, column auto-detection
+  sendEngine.js               Background bulk-send queue (delays, batching, cancel, results export)
+  templateStore.js             WhatsApp message templates: CRUD over data/message-templates.json
+  contactListStore.js           WhatsApp saved contact lists: CRUD over data/contact-lists.json
+  sendHistory.js                  WhatsApp campaign history: aggregates data/logs.json by batch
+  storeAnalyzer.js             Store Analyzer: fetch + parse + category-scored audit of a URL
+  storeAnalysisHistory.js       Store Analyzer: per-host analysis history + score delta
+  campaignPlanStore.js           Campaign Budget Planner: CRUD over data/campaign-plans.json + Excel export
+  database.js                     SQLite setup (data/app.db) — users, sessions, meta_connections, content_posts
+  auth.js                          Register/login, password hashing (scrypt), session tokens
+  cookies.js                        Minimal cookie parse/set helpers for the session cookie
+  contentStore.js                    Social Content Scheduler: per-user CRUD over SQLite
+  metaAuth.js                         Meta OAuth login, token exchange, Pages/IG lookup — per-user connection storage
+  metaPublish.js                       Facebook Page + Instagram Graph API publish calls
+  jsonStore.js                          Generic JSON-array file store used by db.js and the other *Store modules
+  db.js                                  WhatsApp send audit log (data/logs.json)
+public/       Served as-is by Express — this is what actually runs
+              index.html + assets/ = built landing page (see landing-src/ below)
+              app.html, app.js, style.css = the WhatsApp Bulk Sender tool (plain JS, RTL Arabic + English)
+landing-src/  Source for the landing page (React + TypeScript + Tailwind + Vite + React Router) —
+              not served directly; its build output is copied into public/
+  src/pages/    Home, Products, StoreAnalyzer, CampaignCalculator, ContentScheduler, Login, Register
+  src/components/  Shared Nav, Logo, PageShell, BackLink, RequireAuth
+  src/context/     AuthContext (current user, login/register/logout)
+uploads/      Temporary Excel files and message/post attachments (gitignored)
+sessions/     whatsapp-web.js LocalAuth session data (gitignored)
+data/         app.db (SQLite — users, sessions, meta connections, content posts), logs.json,
+              store-analyses.json, campaign-plans.json, message-templates.json, contact-lists.json
+              — all gitignored (app.db holds password hashes and live Meta access tokens)
+templates/    Sample Excel template
+```
+
+### Editing the landing page
+
+The landing page (`public/index.html` + `public/assets/`) is a compiled React/Vite app; its
+source lives in `landing-src/` and isn't served directly. To change it:
+
+```bash
+cd landing-src
+npm install      # first time only
+npm run build    # builds and copies the output into ../public
+```
+
+The build script only replaces `public/index.html` and fully replaces `public/assets/` — it never
+touches `app.html`, `app.js`, or `style.css`, which belong to the WhatsApp tool itself. For
+live-editing with hot reload, run `npm run dev` inside `landing-src` (serves on its own Vite dev
+port; the "Open Tool" link there points to the main app's `/app.html`, and API calls from
+Store Analyzer/Campaign Calculator/Content Scheduler hit relative `/api/...` paths, so run the main
+Express server too if you want those to work while developing).
+
+It's a client-side routed (React Router) app with one shared JS bundle for `/`, `/products`,
+`/store-analyzer`, `/campaign-calculator`, and `/content-scheduler` — Express serves `index.html`
+for any of these paths that isn't a real static file or `/api/...` route, and the router takes over
+from there.
+
+## Troubleshooting
+
+- **QR code doesn't appear / status stuck on "Disconnected"**: check the server console for
+  Puppeteer/Chromium errors; whatsapp-web.js needs to launch a local Chromium instance.
+- **"Port already in use"**: another process is using the configured port — change `PORT` in `.env`.
+- **Numbers marked `not_on_whatsapp`**: the number is valid but has no WhatsApp account registered.
+- **Attachment not sending**: only one image or PDF per send is supported, up to 16MB.
+- **Store Analyzer fails on a URL**: the target site may block bot-like requests, be down, or take
+  longer than 8 seconds to respond; internal/private addresses are rejected on purpose.
