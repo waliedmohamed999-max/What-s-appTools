@@ -10,24 +10,35 @@ const COPY = {
   en: 'Store Analyzer automatically recognizes stores built on:'
 };
 
+function PlatformGroup() {
+  return (
+    <div className="flex gap-12 sm:gap-16 pe-12 sm:pe-16 shrink-0">
+      {PLATFORMS.map((name) => (
+        <span
+          key={name}
+          className="text-[17px] sm:text-[19px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-200 whitespace-nowrap"
+        >
+          {name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function PlatformMarquee() {
   const { lang } = useLanguage();
-  const items = [...PLATFORMS, ...PLATFORMS];
   const animation = lang === 'ar' ? 'animate-marquee-reverse' : 'animate-marquee';
 
   return (
     <section className="glass-panel border-y border-white/40 py-8 sm:py-10">
       <p className="text-center text-[12px] text-[var(--text-muted)] mb-5 px-5">{COPY[lang]}</p>
       <div className="pause-on-hover overflow-hidden">
-        <div className={`flex w-max gap-12 sm:gap-16 ${animation}`}>
-          {items.map((name, index) => (
-            <span
-              key={`${name}-${index}`}
-              className="text-[17px] sm:text-[19px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-200 whitespace-nowrap"
-            >
-              {name}
-            </span>
-          ))}
+        {/* Two identical groups, each owning its own trailing gap (pe-*) rather than a
+            parent `gap`, so the two halves are pixel-identical and translateX(-50%)
+            lands exactly on the seam instead of jumping. */}
+        <div className={`flex w-max ${animation}`}>
+          <PlatformGroup />
+          <PlatformGroup />
         </div>
       </div>
     </section>
