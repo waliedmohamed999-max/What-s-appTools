@@ -17,6 +17,8 @@
   --accent: #7c5cff;
   --accent-rgb: 124, 92, 255;
   --chip: #edecea;
+  --primary-soft: rgba(59, 91, 253, 0.35);
+  --primary-tint: rgba(59, 91, 253, 0.08);
 }
 
 html {

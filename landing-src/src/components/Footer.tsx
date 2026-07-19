@@ -1,8 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Send } from 'lucide-react';
+import { Mail, Send, Instagram, Facebook, Twitter, Linkedin } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { apiFetch } from '../lib/api';
+import WhatsAppIcon from './icons/WhatsAppIcon';
 
 const LINKS: { ar: string; en: string; href: string }[] = [
   { ar: 'المنتجات', en: 'Products', href: '/products' },
@@ -39,13 +40,14 @@ const COPY = {
 const WHATSAPP_NUMBER = '966509095816';
 const CONTACT_EMAIL = 'info@dms1t.com';
 
-function WhatsAppIcon() {
-  return (
-    <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor" aria-hidden="true">
-      <path d="M16.001 3C9.107 3 3.5 8.607 3.5 15.5c0 2.385.664 4.62 1.816 6.527L3 29l7.163-2.278A12.44 12.44 0 0 0 16 28c6.894 0 12.5-5.607 12.5-12.5S22.895 3 16.001 3Zm0 22.7a10.14 10.14 0 0 1-5.164-1.41l-.37-.22-4.25 1.352 1.379-4.142-.24-.386a10.14 10.14 0 0 1-1.556-5.394c0-5.616 4.585-10.2 10.201-10.2 5.616 0 10.2 4.584 10.2 10.2 0 5.615-4.584 10.2-10.2 10.2Zm5.593-7.646c-.306-.153-1.81-.893-2.09-.995-.28-.102-.484-.153-.688.153-.204.306-.79.994-.968 1.198-.178.204-.357.23-.663.077-.306-.153-1.293-.477-2.463-1.52-.91-.812-1.524-1.815-1.703-2.121-.178-.306-.019-.472.134-.624.138-.137.306-.357.459-.535.153-.179.204-.306.306-.51.102-.204.051-.383-.026-.536-.077-.153-.688-1.658-.943-2.271-.248-.596-.5-.516-.688-.526l-.586-.01c-.204 0-.535.077-.815.383-.28.306-1.068 1.044-1.068 2.548 0 1.503 1.093 2.956 1.245 3.16.153.204 2.15 3.283 5.209 4.604.728.314 1.296.502 1.739.642.731.232 1.396.199 1.922.121.586-.088 1.81-.74 2.065-1.454.255-.714.255-1.325.178-1.454-.077-.128-.28-.204-.586-.357Z" />
-    </svg>
-  );
-}
+// Content Scheduler's real, working platforms (see ContentScheduler.tsx) — an honest
+// "you can post to" row, not a claim that DMS itself has accounts on these platforms.
+const SCHEDULER_PLATFORMS = [
+  { icon: Instagram, label: 'Instagram' },
+  { icon: Facebook, label: 'Facebook' },
+  { icon: Twitter, label: 'X / Twitter' },
+  { icon: Linkedin, label: 'LinkedIn' }
+];
 
 function SocialIcon({ href, label, children }: { href: string; label: string; children: ReactNode }) {
   return (
@@ -102,13 +104,22 @@ export default function Footer() {
             <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed max-w-[220px] mb-4">
               {t.tagline}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-4">
               <SocialIcon href={`https://wa.me/${WHATSAPP_NUMBER}`} label="WhatsApp">
-                <WhatsAppIcon />
+                <WhatsAppIcon size={16} />
               </SocialIcon>
               <SocialIcon href={`mailto:${CONTACT_EMAIL}`} label="Email">
                 <Mail size={15} />
               </SocialIcon>
+            </div>
+
+            <p className="text-[11px] text-[var(--text-muted)] mb-2">
+              {lang === 'ar' ? 'جدول منشوراتك على:' : 'Schedule posts for:'}
+            </p>
+            <div className="flex items-center gap-2.5">
+              {SCHEDULER_PLATFORMS.map((p) => (
+                <p.icon key={p.label} size={15} aria-label={p.label} className="text-[var(--text-muted)]" />
+              ))}
             </div>
           </div>
 

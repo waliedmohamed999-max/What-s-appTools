@@ -79,7 +79,7 @@ function scoreColor(score: number) {
 function IssueIcon({ severity }: { severity: Issue['severity'] }) {
   if (severity === 'high') return <AlertCircle size={15} className="text-red-500 shrink-0 mt-0.5" />;
   if (severity === 'medium') return <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />;
-  return <Info size={15} className="text-gray-400 shrink-0 mt-0.5" />;
+  return <Info size={15} className="text-[var(--text-muted)] shrink-0 mt-0.5" />;
 }
 
 export default function StoreAnalyzer() {
@@ -126,10 +126,10 @@ export default function StoreAnalyzer() {
   return (
     <PageShell>
       <BackLink />
-      <h1 className="text-[1.5rem] sm:text-[1.75rem] font-medium text-gray-900 tracking-tight mb-2">
+      <h1 className="text-[1.5rem] sm:text-[1.75rem] font-medium text-[var(--text-primary)] tracking-tight mb-2">
         Store Analyzer
       </h1>
-      <p className="text-[13px] text-gray-400 mb-8">
+      <p className="text-[13px] text-[var(--text-muted)] mb-8">
         تحليل المتاجر / ارفع رابط متجرك أو موقعك واحصل على تقييم فوري مع توصيات للتحسين.
       </p>
 
@@ -139,13 +139,13 @@ export default function StoreAnalyzer() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://yourstore.com"
-          className="flex-1 rounded-xl px-4 py-3 border border-gray-200 text-[16px] sm:text-[13px] bg-white focus:outline-none focus:border-blue-400"
+          className="flex-1 rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] bg-[var(--surface)] focus:outline-none focus:border-[var(--primary-soft)]"
           required
         />
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-blue-500 rounded-xl px-6 py-3 hover:bg-blue-600 transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-3 hover:bg-[var(--primary-hover)] transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {loading && <Loader2 size={14} className="animate-spin" />}
           {loading ? 'جارٍ التحليل... Analyzing' : 'تحليل / Analyze'}
@@ -160,7 +160,7 @@ export default function StoreAnalyzer() {
 
       {result && (
         <div className="space-y-5 mb-10">
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 flex items-center gap-6">
+          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6 flex items-center gap-6">
             <div
               className="flex items-center justify-center rounded-full w-20 h-20 shrink-0 border-4"
               style={{ borderColor: colors?.ring }}
@@ -168,8 +168,8 @@ export default function StoreAnalyzer() {
               <span className={`text-[1.5rem] font-semibold ${colors?.text}`}>{result.score}</span>
             </div>
             <div className="min-w-0">
-              <p className="text-[13px] font-medium text-gray-900 break-all">{result.url}</p>
-              <p className="text-[12px] text-gray-400 mt-1">
+              <p className="text-[13px] font-medium text-[var(--text-primary)] break-all">{result.url}</p>
+              <p className="text-[12px] text-[var(--text-muted)] mt-1">
                 زمن الاستجابة {result.responseTimeMs}ms · حجم الصفحة {result.details.pageSizeKb}KB
                 {result.details.platform ? ` · منصة: ${result.details.platform}` : ''}
               </p>
@@ -187,8 +187,8 @@ export default function StoreAnalyzer() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-2xl p-6">
-            <h3 className="text-[14px] font-medium text-gray-900 mb-4">التقييم حسب الفئة / Score Breakdown</h3>
+          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
+            <h3 className="text-[14px] font-medium text-[var(--text-primary)] mb-4">التقييم حسب الفئة / Score Breakdown</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {CATEGORY_LABELS.map(({ key, label }) => {
                 const value = result.categoryScores[key];
@@ -196,10 +196,10 @@ export default function StoreAnalyzer() {
                 return (
                   <div key={key}>
                     <div className="flex items-center justify-between text-[11.5px] mb-1.5">
-                      <span className="text-gray-500">{label}</span>
+                      <span className="text-[var(--text-secondary)]">{label}</span>
                       <span className={`font-medium ${c.text}`}>{value}</span>
                     </div>
-                    <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-[var(--chip)] rounded-full h-1.5 overflow-hidden">
                       <div className={`h-full rounded-full ${c.bar}`} style={{ width: `${value}%` }} />
                     </div>
                   </div>
@@ -215,13 +215,13 @@ export default function StoreAnalyzer() {
           )}
 
           {result.issues.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-6">
-              <h3 className="text-[14px] font-medium text-gray-900 mb-4">
+            <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
+              <h3 className="text-[14px] font-medium text-[var(--text-primary)] mb-4">
                 ملاحظات للتحسين / Recommendations
               </h3>
               <ul className="space-y-3">
                 {result.issues.map((issue, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[12.5px] text-gray-600">
+                  <li key={i} className="flex items-start gap-2 text-[12.5px] text-[var(--text-secondary)]">
                     <IssueIcon severity={issue.severity} />
                     <span>{issue.message}</span>
                   </li>
@@ -230,69 +230,69 @@ export default function StoreAnalyzer() {
             </div>
           )}
 
-          <div className="bg-white border border-gray-200 rounded-2xl p-6">
-            <h3 className="text-[14px] font-medium text-gray-900 mb-4">التفاصيل / Details</h3>
+          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
+            <h3 className="text-[14px] font-medium text-[var(--text-primary)] mb-4">التفاصيل / Details</h3>
             <dl className="grid grid-cols-2 gap-y-3 text-[12.5px]">
-              <dt className="text-gray-400">العنوان / Title</dt>
-              <dd className="text-gray-700 truncate">{result.details.title || '—'}</dd>
+              <dt className="text-[var(--text-muted)]">العنوان / Title</dt>
+              <dd className="text-[var(--text-secondary)] truncate">{result.details.title || '—'}</dd>
 
-              <dt className="text-gray-400">وصف Meta</dt>
-              <dd className="text-gray-700 truncate">{result.details.metaDescription || '—'}</dd>
+              <dt className="text-[var(--text-muted)]">وصف Meta</dt>
+              <dd className="text-[var(--text-secondary)] truncate">{result.details.metaDescription || '—'}</dd>
 
-              <dt className="text-gray-400">HTTPS</dt>
-              <dd className="text-gray-700">{result.details.isHttps ? 'نعم / Yes' : 'لا / No'}</dd>
+              <dt className="text-[var(--text-muted)]">HTTPS</dt>
+              <dd className="text-[var(--text-secondary)]">{result.details.isHttps ? 'نعم / Yes' : 'لا / No'}</dd>
 
-              <dt className="text-gray-400">متوافق مع الجوال</dt>
-              <dd className="text-gray-700">{result.details.hasViewport ? 'نعم / Yes' : 'لا / No'}</dd>
+              <dt className="text-[var(--text-muted)]">متوافق مع الجوال</dt>
+              <dd className="text-[var(--text-secondary)]">{result.details.hasViewport ? 'نعم / Yes' : 'لا / No'}</dd>
 
-              <dt className="text-gray-400">Canonical</dt>
-              <dd className="text-gray-700">{result.details.hasCanonical ? 'نعم / Yes' : 'لا / No'}</dd>
+              <dt className="text-[var(--text-muted)]">Canonical</dt>
+              <dd className="text-[var(--text-secondary)]">{result.details.hasCanonical ? 'نعم / Yes' : 'لا / No'}</dd>
 
-              <dt className="text-gray-400">بيانات Schema.org</dt>
-              <dd className="text-gray-700">{result.details.hasStructuredData ? 'نعم / Yes' : 'لا / No'}</dd>
+              <dt className="text-[var(--text-muted)]">بيانات Schema.org</dt>
+              <dd className="text-[var(--text-secondary)]">{result.details.hasStructuredData ? 'نعم / Yes' : 'لا / No'}</dd>
 
-              <dt className="text-gray-400">robots.txt</dt>
-              <dd className="text-gray-700">{result.details.hasRobotsTxt ? 'نعم / Yes' : 'لا / No'}</dd>
+              <dt className="text-[var(--text-muted)]">robots.txt</dt>
+              <dd className="text-[var(--text-secondary)]">{result.details.hasRobotsTxt ? 'نعم / Yes' : 'لا / No'}</dd>
 
-              <dt className="text-gray-400">سكربتات خارجية</dt>
-              <dd className="text-gray-700">{result.details.externalScriptCount}</dd>
+              <dt className="text-[var(--text-muted)]">سكربتات خارجية</dt>
+              <dd className="text-[var(--text-secondary)]">{result.details.externalScriptCount}</dd>
 
-              <dt className="text-gray-400">عدد الكلمات</dt>
-              <dd className="text-gray-700">{result.details.wordCount}</dd>
+              <dt className="text-[var(--text-muted)]">عدد الكلمات</dt>
+              <dd className="text-[var(--text-secondary)]">{result.details.wordCount}</dd>
 
-              <dt className="text-gray-400">الصور بدون alt</dt>
-              <dd className="text-gray-700">
+              <dt className="text-[var(--text-muted)]">الصور بدون alt</dt>
+              <dd className="text-[var(--text-secondary)]">
                 {result.details.imagesWithoutAlt} من {result.details.imageCount} ({result.details.altCoveragePercent}% تغطية)
               </dd>
 
-              <dt className="text-gray-400 flex items-center gap-1">
+              <dt className="text-[var(--text-muted)] flex items-center gap-1">
                 <Share2 size={12} /> سوشيال ميديا
               </dt>
-              <dd className="text-gray-700">
+              <dd className="text-[var(--text-secondary)]">
                 {result.details.socialLinks.length > 0 ? result.details.socialLinks.join(', ') : '—'}
               </dd>
 
-              <dt className="text-gray-400 flex items-center gap-1">
+              <dt className="text-[var(--text-muted)] flex items-center gap-1">
                 <Mail size={12} /> إيميل
               </dt>
-              <dd className="text-gray-700">{result.details.emails.join(', ') || '—'}</dd>
+              <dd className="text-[var(--text-secondary)]">{result.details.emails.join(', ') || '—'}</dd>
 
-              <dt className="text-gray-400 flex items-center gap-1">
+              <dt className="text-[var(--text-muted)] flex items-center gap-1">
                 <Phone size={12} /> هاتف
               </dt>
-              <dd className="text-gray-700">{result.details.phones.join(', ') || '—'}</dd>
+              <dd className="text-[var(--text-secondary)]">{result.details.phones.join(', ') || '—'}</dd>
             </dl>
           </div>
         </div>
       )}
 
       {history.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[14px] font-medium text-gray-900">السجل / History</h3>
+            <h3 className="text-[14px] font-medium text-[var(--text-primary)]">السجل / History</h3>
             <a
               href={apiUrl('/api/store-analysis/history.xlsx')}
-              className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-500 hover:text-blue-600 transition-colors"
+              className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
             >
               <Download size={12} />
               تصدير Excel
@@ -302,9 +302,9 @@ export default function StoreAnalyzer() {
             {history.map((h) => {
               const c = scoreColor(h.score);
               return (
-                <div key={h.id} className="flex items-center justify-between text-[12.5px] py-1.5 border-b border-gray-100 last:border-0">
-                  <span className="text-gray-700 truncate">{h.hostname}</span>
-                  <span className="text-gray-400 shrink-0 mx-3">
+                <div key={h.id} className="flex items-center justify-between text-[12.5px] py-1.5 border-b border-[var(--line)] last:border-0">
+                  <span className="text-[var(--text-secondary)] truncate">{h.hostname}</span>
+                  <span className="text-[var(--text-muted)] shrink-0 mx-3">
                     {new Date(h.fetchedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <span className={`font-medium shrink-0 ${c.text}`}>{h.score}</span>

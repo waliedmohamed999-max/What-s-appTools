@@ -1,18 +1,22 @@
 import type { LucideIcon } from 'lucide-react';
-import { MessageCircle, Search, Calculator, CalendarClock } from 'lucide-react';
+import { Search, Calculator, CalendarClock, Instagram, Facebook, Twitter, Linkedin } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import WhatsAppIcon from '../icons/WhatsAppIcon';
 
 type Tool = {
-  icon: LucideIcon;
+  icon: LucideIcon | typeof WhatsAppIcon;
+  brandColor?: string;
   href: string;
   title: { ar: string; en: string };
   description: { ar: string; en: string };
   cta: { ar: string; en: string };
+  platforms?: LucideIcon[];
 };
 
 const TOOLS: Tool[] = [
   {
-    icon: MessageCircle,
+    icon: WhatsAppIcon,
+    brandColor: '#25d366',
     href: '/app.html',
     title: { ar: 'إرسال واتساب جماعي', en: 'WhatsApp Bulk Sender' },
     description: {
@@ -49,7 +53,8 @@ const TOOLS: Tool[] = [
       ar: 'جهّز منشوراتك لإنستجرام وفيسبوك وباقي المنصات مع صورة وتاريخ نشر، وشوفها في تقويم شهري، وانشرها مباشرة لو ربطت حساب فيسبوك/إنستجرام.',
       en: 'Draft posts for Instagram, Facebook, and more with an image and schedule, view them on a monthly calendar, and publish directly once you connect Facebook/Instagram.'
     },
-    cta: { ar: 'جدول منشورك', en: 'Schedule a post' }
+    cta: { ar: 'جدول منشورك', en: 'Schedule a post' },
+    platforms: [Instagram, Facebook, Twitter, Linkedin]
   }
 ];
 
@@ -85,12 +90,19 @@ export default function ToolsSection() {
                 className="flex items-center justify-center rounded-full w-11 h-11 mb-4"
                 style={{ backgroundColor: 'var(--chip)' }}
               >
-                <Icon size={18} style={{ color: 'var(--primary)' }} />
+                <Icon size={18} style={{ color: tool.brandColor || 'var(--primary)' }} />
               </div>
               <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-2">{tool.title[lang]}</h3>
-              <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-4 flex-1">
+              <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-3 flex-1">
                 {tool.description[lang]}
               </p>
+              {tool.platforms && (
+                <div className="flex items-center gap-2 mb-4">
+                  {tool.platforms.map((PlatformIcon, i) => (
+                    <PlatformIcon key={i} size={14} className="text-[var(--text-muted)]" />
+                  ))}
+                </div>
+              )}
               <a
                 href={tool.href}
                 className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-[var(--primary)] border border-[rgba(var(--primary-rgb),0.4)] rounded-full px-4 py-2 hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] transition-all duration-200 group"

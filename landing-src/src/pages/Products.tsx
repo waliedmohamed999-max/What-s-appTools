@@ -72,10 +72,10 @@ export default function Products() {
 
   return (
     <PageShell maxWidth="max-w-5xl">
-      <h1 className="text-[1.5rem] sm:text-[1.75rem] font-medium text-gray-900 tracking-tight mb-2">
+      <h1 className="text-[1.5rem] sm:text-[1.75rem] font-medium text-[var(--text-primary)] tracking-tight mb-2">
         {t.title}
       </h1>
-      <p className="text-[13px] text-gray-400 mb-8 sm:mb-10">{t.subtitle}</p>
+      <p className="text-[13px] text-[var(--text-muted)] mb-8 sm:mb-10">{t.subtitle}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
         {PRODUCTS.map((p) => {
@@ -85,21 +85,21 @@ export default function Products() {
               <div className="flex items-start justify-between mb-4">
                 <div
                   className="flex items-center justify-center rounded-full w-11 h-11"
-                  style={{ backgroundColor: '#EDEDED' }}
+                  style={{ backgroundColor: 'var(--chip)' }}
                 >
-                  <Icon size={18} className="text-gray-700" />
+                  <Icon size={18} className="text-[var(--text-secondary)]" />
                 </div>
                 <ArrowUpRight
                   size={16}
-                  className="text-gray-300 group-hover:text-blue-500 transition-colors duration-200"
+                  className="text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors duration-200"
                 />
               </div>
-              <h3 className="text-[15px] font-medium text-gray-900 mb-2">{p.title[lang]}</h3>
-              <p className="text-[12.5px] text-gray-400 leading-relaxed">{p.description[lang]}</p>
+              <h3 className="text-[15px] font-medium text-[var(--text-primary)] mb-2">{p.title[lang]}</h3>
+              <p className="text-[12.5px] text-[var(--text-muted)] leading-relaxed">{p.description[lang]}</p>
             </>
           );
           const cardClass =
-            'group block bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 active:scale-[0.98] hover:border-blue-300 hover:shadow-sm transition-all duration-200';
+            'group block bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-5 sm:p-6 active:scale-[0.98] hover:border-[var(--primary-soft)] hover:shadow-sm transition-all duration-200';
 
           return p.external ? (
             <a key={p.href} href={p.href} className={cardClass}>

@@ -340,16 +340,16 @@ export default function ContentScheduler() {
       <BackLink />
       <div className="flex items-start justify-between mb-2 gap-4">
         <div>
-          <h1 className="text-[1.5rem] sm:text-[1.75rem] font-medium text-gray-900 tracking-tight mb-2">
+          <h1 className="text-[1.5rem] sm:text-[1.75rem] font-medium text-[var(--text-primary)] tracking-tight mb-2">
             Social Content Scheduler
           </h1>
-          <p className="text-[13px] text-gray-400">
+          <p className="text-[13px] text-[var(--text-muted)]">
             جدولة محتوى السوشيال ميديا / جهّز وجدول منشوراتك، وانسخها للنشر اليدوي وقت الموعد.
           </p>
         </div>
         <button
           onClick={() => (showForm ? setShowForm(false) : startCreate())}
-          className="shrink-0 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-white bg-blue-500 rounded-xl px-4 py-2.5 hover:bg-blue-600 transition-colors duration-200"
+          className="shrink-0 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-white bg-[var(--primary)] rounded-xl px-4 py-2.5 hover:bg-[var(--primary-hover)] transition-colors duration-200"
         >
           {showForm ? <X size={14} /> : <Plus size={14} />}
           {showForm ? 'إغلاق / Close' : 'منشور جديد / New Post'}
@@ -372,19 +372,19 @@ export default function ContentScheduler() {
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 mt-6">
-        <h3 className="text-[14px] font-medium text-gray-900 mb-1">الحسابات المتصلة / Connected Accounts</h3>
-        <p className="text-[11.5px] text-gray-400 mb-4">
+      <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6 mt-6">
+        <h3 className="text-[14px] font-medium text-[var(--text-primary)] mb-1">الحسابات المتصلة / Connected Accounts</h3>
+        <p className="text-[11.5px] text-[var(--text-muted)] mb-4">
           اربط كل منصة على حدة لتقدر تنشر منها مباشرة بدل النسخ اليدوي.
         </p>
 
         {metaStatus.connected && (metaStatus.pages?.length || 0) > 0 && (
-          <label className="block text-[11.5px] text-gray-500 mb-4">
+          <label className="block text-[11.5px] text-[var(--text-secondary)] mb-4">
             صفحة النشر / Publishing Page
             <select
               value={selectedMetaPageId}
               onChange={(event) => setSelectedMetaPageId(event.target.value)}
-              className="mt-1 w-full rounded-lg px-3 py-2.5 border border-gray-200 bg-white text-[13px] text-gray-900 focus:outline-none focus:border-blue-400"
+              className="mt-1 w-full rounded-lg px-3 py-2.5 border border-[var(--line)] bg-[var(--surface)] text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
             >
               {metaStatus.pages?.map((page) => (
                 <option key={page.id} value={page.id}>
@@ -408,7 +408,7 @@ export default function ContentScheduler() {
               p.key === 'instagram' && Boolean(metaStatus.connected && selectedMetaPage && !selectedMetaPage.hasInstagram);
 
             return (
-              <div key={p.key} className="border border-gray-100 rounded-xl p-4 flex flex-col items-start gap-2">
+              <div key={p.key} className="border border-[var(--line)] rounded-xl p-4 flex flex-col items-start gap-2">
                 <span
                   className="text-[11px] font-medium px-2.5 py-1 rounded-full"
                   style={{ backgroundColor: p.color, color: p.dark ? '#111827' : '#fff' }}
@@ -416,7 +416,7 @@ export default function ContentScheduler() {
                   {p.label}
                 </span>
 
-                {!isMeta && <span className="text-[11px] text-gray-400">قريباً / Coming soon</span>}
+                {!isMeta && <span className="text-[11px] text-[var(--text-muted)]">قريباً / Coming soon</span>}
 
                 {isMeta && connected && (
                   <>
@@ -425,7 +425,7 @@ export default function ContentScheduler() {
                     </span>
                     <button
                       onClick={disconnectMeta}
-                      className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-600 transition-colors"
+                      className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-red-600 transition-colors"
                     >
                       <Unlink size={11} /> قطع الاتصال / Disconnect
                     </button>
@@ -437,7 +437,7 @@ export default function ContentScheduler() {
                     <span className="text-[11px] text-amber-600">لا يوجد حساب انستغرام مرتبط بالصفحة / No Instagram linked</span>
                     <a
                       href={apiUrl('/api/meta/auth')}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-500 hover:text-blue-600"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--primary)] hover:text-[var(--primary-hover)]"
                     >
                       <Link2 size={11} /> إعادة الربط / Reconnect
                     </a>
@@ -445,7 +445,7 @@ export default function ContentScheduler() {
                 )}
 
                 {isMeta && !connected && !needsInstagramLink && !metaStatus.configured && (
-                  <span className="text-[11px] text-gray-400">لم يتم الإعداد / Not configured</span>
+                  <span className="text-[11px] text-[var(--text-muted)]">لم يتم الإعداد / Not configured</span>
                 )}
 
                 {isMeta && !connected && !needsInstagramLink && metaStatus.configured && (
@@ -464,24 +464,24 @@ export default function ContentScheduler() {
       </div>
 
       <div className="grid grid-cols-3 gap-4 mt-6 mb-2">
-        <div className="bg-white border border-gray-200 rounded-2xl p-4">
-          <p className="text-[11px] text-gray-400 mb-1">مجدولة / Scheduled</p>
-          <p className="text-[16px] font-medium text-gray-900">{scheduled.length}</p>
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-4">
+          <p className="text-[11px] text-[var(--text-muted)] mb-1">مجدولة / Scheduled</p>
+          <p className="text-[16px] font-medium text-[var(--text-primary)]">{scheduled.length}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-2xl p-4">
-          <p className="text-[11px] text-gray-400 mb-1">خلال أسبوع / Due soon</p>
-          <p className="text-[16px] font-medium text-gray-900">{dueSoonCount}</p>
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-4">
+          <p className="text-[11px] text-[var(--text-muted)] mb-1">خلال أسبوع / Due soon</p>
+          <p className="text-[16px] font-medium text-[var(--text-primary)]">{dueSoonCount}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-2xl p-4">
-          <p className="text-[11px] text-gray-400 mb-1">متأخرة / Overdue</p>
-          <p className={`text-[16px] font-medium ${overdueCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{overdueCount}</p>
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-4">
+          <p className="text-[11px] text-[var(--text-muted)] mb-1">متأخرة / Overdue</p>
+          <p className={`text-[16px] font-medium ${overdueCount > 0 ? 'text-red-600' : 'text-[var(--text-primary)]'}`}>{overdueCount}</p>
         </div>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-6 mt-6 mb-8 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6 mt-6 mb-8 space-y-4">
           <div>
-            <p className="text-[11px] text-gray-400 mb-2">
+            <p className="text-[11px] text-[var(--text-muted)] mb-2">
               {editingId ? 'المنصة / Platform' : 'المنصات (يمكن اختيار أكثر من واحدة) / Platforms (multi-select)'}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -512,11 +512,11 @@ export default function ContentScheduler() {
               onChange={(e) => setCaption(e.target.value)}
               rows={4}
               placeholder="اكتب نص المنشور... / Write your caption..."
-              className="w-full rounded-xl px-4 py-3 border border-gray-200 text-[16px] sm:text-[13px] focus:outline-none focus:border-blue-400"
+              className="w-full rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus:outline-none focus:border-[var(--primary-soft)]"
               required
             />
             {strictestLimit !== null && (
-              <p className={`text-[11px] mt-1 ${overLimit ? 'text-red-600' : 'text-gray-400'}`}>
+              <p className={`text-[11px] mt-1 ${overLimit ? 'text-red-600' : 'text-[var(--text-muted)]'}`}>
                 {caption.length} / {strictestLimit}
                 {overLimit ? ' — النص أطول من الحد المسموح لأحد المنصات المختارة' : ''}
               </p>
@@ -524,18 +524,18 @@ export default function ContentScheduler() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <label className="text-[12px] text-gray-500">
+            <label className="text-[12px] text-[var(--text-secondary)]">
               موعد النشر / Schedule
               <input
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                className="mt-1 block rounded-lg px-3 py-3 border border-gray-200 text-[16px] sm:text-[12.5px] text-gray-900 focus:outline-none focus:border-blue-400"
+                className="mt-1 block rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
               />
             </label>
 
-            <label className="text-[12px] text-gray-500 inline-flex items-center gap-2 cursor-pointer">
-              <span className="inline-flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 hover:border-blue-400 transition-colors">
+            <label className="text-[12px] text-[var(--text-secondary)] inline-flex items-center gap-2 cursor-pointer">
+              <span className="inline-flex items-center gap-1.5 border border-[var(--line)] rounded-lg px-3 py-2 text-[var(--text-secondary)] hover:border-[var(--primary-soft)] transition-colors">
                 <ImageIcon size={14} />
                 {mediaFile ? mediaFile.name : existingMedia ? 'استبدال الصورة / Replace image' : 'صورة اختيارية / Optional image'}
               </span>
@@ -546,7 +546,7 @@ export default function ContentScheduler() {
               <img
                 src={apiUrl(`/uploads/${existingMedia.filename}`)}
                 alt=""
-                className="w-10 h-10 rounded-lg object-cover border border-gray-100"
+                className="w-10 h-10 rounded-lg object-cover border border-[var(--line)]"
               />
             )}
           </div>
@@ -560,7 +560,7 @@ export default function ContentScheduler() {
           <button
             type="submit"
             disabled={submitting || overLimit}
-            className="inline-flex items-center gap-2 text-[13px] font-medium text-white bg-blue-500 rounded-xl px-6 py-2.5 hover:bg-blue-600 transition-colors duration-200 disabled:opacity-60"
+            className="inline-flex items-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-2.5 hover:bg-[var(--primary-hover)] transition-colors duration-200 disabled:opacity-60"
           >
             {submitting && <Loader2 size={14} className="animate-spin" />}
             {editingId ? 'حفظ التعديل / Save Changes' : 'حفظ المنشور / Save Post'}
@@ -569,11 +569,11 @@ export default function ContentScheduler() {
       )}
 
       <div className="flex items-center justify-between mt-8 mb-3">
-        <div className="inline-flex rounded-xl border border-gray-200 p-0.5">
+        <div className="inline-flex rounded-xl border border-[var(--line)] p-0.5">
           <button
             onClick={() => setView('list')}
             className={`inline-flex items-center gap-1.5 text-[11.5px] font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
-              view === 'list' ? 'bg-blue-500 text-white' : 'text-gray-500'
+              view === 'list' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-secondary)]'
             }`}
           >
             <List size={13} /> قائمة / List
@@ -581,7 +581,7 @@ export default function ContentScheduler() {
           <button
             onClick={() => setView('calendar')}
             className={`inline-flex items-center gap-1.5 text-[11.5px] font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
-              view === 'calendar' ? 'bg-blue-500 text-white' : 'text-gray-500'
+              view === 'calendar' ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-secondary)]'
             }`}
           >
             <CalendarDays size={13} /> تقويم / Calendar
@@ -589,14 +589,14 @@ export default function ContentScheduler() {
         </div>
         <a
           href={apiUrl('/api/content/posts/export.xlsx')}
-          className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-500 hover:text-blue-600 transition-colors"
+          className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors"
         >
           <Download size={12} /> تصدير الجدول / Export
         </a>
       </div>
 
       {loadingPosts ? (
-        <p className="text-[13px] text-gray-400 mt-4">جارٍ التحميل... / Loading...</p>
+        <p className="text-[13px] text-[var(--text-muted)] mt-4">جارٍ التحميل... / Loading...</p>
       ) : view === 'list' ? (
         <div className="space-y-8">
           <PostSection
@@ -621,10 +621,10 @@ export default function ContentScheduler() {
             onEdit={startEdit}
             copiedId={copiedId}
           />
-          {posts.length === 0 && <p className="text-[13px] text-gray-400">لا توجد منشورات بعد / No posts yet</p>}
+          {posts.length === 0 && <p className="text-[13px] text-[var(--text-muted)]">لا توجد منشورات بعد / No posts yet</p>}
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
+        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
           <CalendarGrid month={calendarMonth} postsByDate={postsByDate} onSelectPost={startEdit} onPrev={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))} onNext={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))} />
         </div>
       )}
@@ -663,19 +663,19 @@ function PostSection({
 
   return (
     <div>
-      <h3 className="text-[12.5px] font-medium text-gray-500 mb-3">{title}</h3>
+      <h3 className="text-[12.5px] font-medium text-[var(--text-secondary)] mb-3">{title}</h3>
       <div className="space-y-3">
         {posts.map((post) => {
           const info = platformInfo(post.platform);
           const overdue = post.status === 'scheduled' && post.scheduledAt && new Date(post.scheduledAt).getTime() < now;
           const publishable = canPublish(post);
           return (
-            <div key={post.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex gap-4">
+            <div key={post.id} className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-5 flex gap-4">
               {post.media && (
                 <img
                   src={apiUrl(`/uploads/${post.media.filename}`)}
                   alt=""
-                  className="w-16 h-16 rounded-xl object-cover shrink-0 border border-gray-100"
+                  className="w-16 h-16 rounded-xl object-cover shrink-0 border border-[var(--line)]"
                 />
               )}
               <div className="flex-1 min-w-0">
@@ -686,19 +686,19 @@ function PostSection({
                   >
                     {info.label}
                   </span>
-                  <span className="text-[11.5px] text-gray-400">{formatDate(post.scheduledAt)}</span>
+                  <span className="text-[11.5px] text-[var(--text-muted)]">{formatDate(post.scheduledAt)}</span>
                   {overdue && (
                     <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-red-600">
                       <AlertCircle size={11} /> متأخر / Overdue
                     </span>
                   )}
                 </div>
-                <p className="text-[12.5px] text-gray-700 whitespace-pre-wrap break-words">{post.caption}</p>
+                <p className="text-[12.5px] text-[var(--text-secondary)] whitespace-pre-wrap break-words">{post.caption}</p>
                 {publishable && (
                   <button
                     onClick={() => onPublish?.(post)}
                     disabled={publishingId === post.id}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-500 hover:text-blue-600 transition-colors mt-2 disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors mt-2 disabled:opacity-60"
                   >
                     {publishingId === post.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                     نشر الآن / Publish Now
@@ -714,14 +714,14 @@ function PostSection({
                 <button
                   onClick={() => onEdit(post)}
                   title="تعديل / Edit"
-                  className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-blue-500 hover:border-blue-300 transition-colors duration-200"
+                  className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-[var(--line)] text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary-soft)] transition-colors duration-200"
                 >
                   <Pencil size={14} />
                 </button>
                 <button
                   onClick={() => onCopy(post)}
                   title="نسخ النص / Copy caption"
-                  className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-blue-500 hover:border-blue-300 transition-colors duration-200"
+                  className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-[var(--line)] text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary-soft)] transition-colors duration-200"
                 >
                   {copiedId === post.id ? <Check size={14} /> : <Copy size={14} />}
                 </button>
@@ -729,7 +729,7 @@ function PostSection({
                   <button
                     onClick={() => onMarkPosted(post.id)}
                     title="تم النشر / Mark as posted"
-                    className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-emerald-600 hover:border-emerald-300 transition-colors duration-200"
+                    className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-[var(--line)] text-[var(--text-secondary)] hover:text-emerald-600 hover:border-emerald-300 transition-colors duration-200"
                   >
                     <Check size={14} />
                   </button>
@@ -737,7 +737,7 @@ function PostSection({
                 <button
                   onClick={() => onDelete(post.id)}
                   title="حذف / Delete"
-                  className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-300 transition-colors duration-200"
+                  className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-[var(--line)] text-[var(--text-secondary)] hover:text-red-600 hover:border-red-300 transition-colors duration-200"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -781,18 +781,18 @@ function CalendarGrid({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <button onClick={onPrev} className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-blue-500 hover:border-blue-300 transition-colors">
+        <button onClick={onPrev} className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg border border-[var(--line)] text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary-soft)] transition-colors">
           <ChevronLeft size={14} />
         </button>
-        <span className="text-[13px] font-medium text-gray-800">{monthLabel}</span>
-        <button onClick={onNext} className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-blue-500 hover:border-blue-300 transition-colors">
+        <span className="text-[13px] font-medium text-[var(--text-primary)]">{monthLabel}</span>
+        <button onClick={onNext} className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg border border-[var(--line)] text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary-soft)] transition-colors">
           <ChevronRight size={14} />
         </button>
       </div>
 
       <div className="grid grid-cols-7 gap-1 mb-1">
         {weekdayLabels.map((w) => (
-          <div key={w} className="text-[10px] text-gray-400 text-center py-1">
+          <div key={w} className="text-[10px] text-[var(--text-muted)] text-center py-1">
             {w}
           </div>
         ))}
@@ -807,9 +807,9 @@ function CalendarGrid({
           return (
             <div
               key={i}
-              className={`aspect-square rounded-lg border p-1 overflow-hidden ${isToday ? 'border-blue-400 bg-blue-50' : 'border-gray-100'}`}
+              className={`aspect-square rounded-lg border p-1 overflow-hidden ${isToday ? 'border-[var(--primary-soft)] bg-[var(--primary-tint)]' : 'border-[var(--line)]'}`}
             >
-              <div className="text-[10px] text-gray-400 mb-0.5">{d}</div>
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{d}</div>
               <div className="space-y-0.5">
                 {dayPosts.slice(0, 3).map((p) => {
                   const info = platformInfo(p.platform);
@@ -825,7 +825,7 @@ function CalendarGrid({
                     </button>
                   );
                 })}
-                {dayPosts.length > 3 && <div className="text-[9px] text-gray-400">+{dayPosts.length - 3}</div>}
+                {dayPosts.length > 3 && <div className="text-[9px] text-[var(--text-muted)]">+{dayPosts.length - 3}</div>}
               </div>
             </div>
           );

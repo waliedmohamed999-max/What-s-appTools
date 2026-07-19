@@ -5,7 +5,7 @@ export default function BackLink() {
   return (
     <Link
       to="/products"
-      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-400 hover:text-gray-700 transition-colors duration-200 mb-6"
+      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-200 mb-6"
     >
       <ArrowLeft size={14} />
       Products
