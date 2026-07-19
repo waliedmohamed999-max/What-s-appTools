@@ -4,10 +4,10 @@ import Logo from './Logo';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_LINKS: { label: string; href: string }[] = [
-  { label: 'Story', href: '#' },
   { label: 'Products', href: '/products' },
-  { label: 'Help', href: '#' },
-  { label: 'Support', href: '#' }
+  { label: 'Store Analyzer', href: '/store-analyzer' },
+  { label: 'Campaigns', href: '/campaign-calculator' },
+  { label: 'Content', href: '/content-scheduler' }
 ];
 
 export default function Nav({ sticky = false }: { sticky?: boolean }) {
@@ -29,15 +29,12 @@ export default function Nav({ sticky = false }: { sticky?: boolean }) {
     >
       <Link
         to="/"
-        className="flex items-center justify-center rounded-full w-11 h-11 shrink-0"
-        style={{ backgroundColor: '#EDEDED' }}
+        aria-label="DMS home"
+        className="flex items-center justify-center rounded-xl w-16 h-11 shrink-0 bg-gray-900"
       >
         <Logo />
       </Link>
 
-      {/* Story/Help/Support are non-functional placeholders — hidden on mobile so the bar
-          doesn't overflow; Products is the one link that actually goes somewhere, so it
-          gets its own always-visible pill instead of living inside the hidden group. */}
       <Link
         to="/products"
         className="sm:hidden inline-flex items-center text-[13px] font-medium text-gray-700 rounded-xl px-4 py-3 shrink-0"

@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const config = require('./config');
 const { db } = require('./database');
 
-const GRAPH_VERSION = 'v19.0';
+const GRAPH_VERSION = config.META_GRAPH_VERSION;
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes to complete the OAuth round trip
 
@@ -121,6 +121,10 @@ async function completeLogin(code, state) {
 function getStatus(userId) {
   const conn = readConnection(userId);
   if (!conn) return { connected: false, configured: isConfigured() };
+  if (conn.expiresAt && new Date(conn.expiresAt).getTime() <= Date.now()) {
+    clearConnection(userId);
+    return { connected: false, configured: isConfigured(), expired: true };
+  }
   return {
     connected: true,
     configured: true,
@@ -133,6 +137,10 @@ function getStatus(userId) {
 function getPage(userId, pageId) {
   const conn = readConnection(userId);
   if (!conn) throw new Error('لا يوجد حساب Meta متصل / No connected Meta account');
+  if (conn.expiresAt && new Date(conn.expiresAt).getTime() <= Date.now()) {
+    clearConnection(userId);
+    throw new Error('انتهت صلاحية اتصال Meta، أعد الربط / Meta connection expired; reconnect it');
+  }
   const page = (pageId ? conn.pages.find((p) => p.id === pageId) : conn.pages[0]) || conn.pages[0];
   if (!page) throw new Error('لا توجد صفحة متصلة / No connected Page');
   return page;

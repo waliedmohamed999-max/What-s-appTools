@@ -3,13 +3,25 @@
     connectionStatus: 'disconnected',
     validRecipients: [],
     hasNameColumn: false,
-    media: null, // { path, mimetype, originalName }
+    media: null, // { filename, mimetype, originalName }
     config: null,
     sendRunning: false,
     lastBatchId: null
   };
 
   const el = (id) => document.getElementById(id);
+  const apiUrl = (path) => (window.DMS_API ? window.DMS_API.url(path) : path);
+
+  async function requestJson(path, options) {
+    const res = await fetch(path, options);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Invalid server response (HTTP ${res.status})`);
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
 
   const statusBadge = el('statusBadge');
   const statusDot = el('statusDot');
@@ -19,6 +31,9 @@
   const connectedWrap = el('connectedWrap');
   const connectedNumber = el('connectedNumber');
   const waitingWrap = el('waitingWrap');
+  const connectionErrorWrap = el('connectionErrorWrap');
+  const connectionErrorText = el('connectionErrorText');
+  const retryConnectionBtn = el('retryConnectionBtn');
   const logoutBtn = el('logoutBtn');
 
   const step2 = el('step2');
@@ -58,17 +73,38 @@
   const cancelBtn = el('cancelBtn');
   const resultsWrap = el('resultsWrap');
   const downloadResults = el('downloadResults');
+  el('downloadTemplate').href = apiUrl('/api/template/download');
 
   // ---------- Step 1: Connection ----------
 
+  let statusInFlight = false;
   async function pollStatus() {
+    if (statusInFlight) return;
+    statusInFlight = true;
     try {
-      const res = await fetch('/api/status');
-      const data = await res.json();
+      const data = await requestJson('/api/status');
       applyStatus(data);
     } catch (err) {
-      statusText.textContent = 'تعذر الاتصال بالخادم / Cannot reach server';
+      showConnectionError(err);
+    } finally {
+      statusInFlight = false;
     }
+  }
+
+  function showConnectionError(err) {
+    state.connectionStatus = 'error';
+    statusDot.className = 'dot error';
+    statusText.textContent = 'الخادم غير متاح / Server unavailable';
+    qrWrap.classList.add('hidden');
+    connectedWrap.classList.add('hidden');
+    waitingWrap.classList.add('hidden');
+    connectionErrorWrap.classList.remove('hidden');
+    const noBackendConfigured = !window.DMS_API?.baseUrl && window.location.hostname.endsWith('.vercel.app');
+    connectionErrorText.textContent = noBackendConfigured
+      ? 'لم يتم ربط Vercel بخادم DMS الدائم بعد / Vercel is not connected to the DMS backend yet'
+      : `تعذر الاتصال بخادم DMS / Cannot reach the DMS server${err?.message ? ` — ${err.message}` : ''}`;
+    step2.classList.add('disabled');
+    updateSendAvailability();
   }
 
   function applyStatus(data) {
@@ -78,6 +114,7 @@
     qrWrap.classList.add('hidden');
     connectedWrap.classList.add('hidden');
     waitingWrap.classList.add('hidden');
+    connectionErrorWrap.classList.add('hidden');
 
     if (data.status === 'connected') {
       statusText.textContent = 'متصل / Connected';
@@ -89,32 +126,53 @@
       qrWrap.classList.remove('hidden');
       if (data.qr) qrImage.src = data.qr;
       step2.classList.add('disabled');
+    } else if (data.status === 'disabled') {
+      statusText.textContent = 'خدمة واتساب غير مفعلة / WhatsApp service disabled';
+      statusDot.className = 'dot disabled';
+      connectionErrorText.textContent =
+        'يجب تشغيل DMS على خادم دائم يدعم Chromium والتخزين الدائم / Run DMS on a persistent server with Chromium';
+      connectionErrorWrap.classList.remove('hidden');
+      step2.classList.add('disabled');
     } else {
       statusText.textContent = 'غير متصل / Disconnected';
-      waitingWrap.classList.remove('hidden');
+      if (data.error) {
+        connectionErrorText.textContent = `تعذر بدء واتساب / WhatsApp could not start — ${data.error}`;
+        connectionErrorWrap.classList.remove('hidden');
+      } else {
+        waitingWrap.classList.remove('hidden');
+      }
       step2.classList.add('disabled');
     }
     updateSendAvailability();
   }
 
+  retryConnectionBtn.addEventListener('click', () => {
+    retryConnectionBtn.disabled = true;
+    pollStatus().finally(() => {
+      retryConnectionBtn.disabled = false;
+    });
+  });
+
   logoutBtn.addEventListener('click', async () => {
     logoutBtn.disabled = true;
     try {
-      await fetch('/api/logout', { method: 'POST' });
+      await requestJson('/api/logout', { method: 'POST' });
     } finally {
       logoutBtn.disabled = false;
     }
   });
 
-  setInterval(pollStatus, 2000);
-  pollStatus();
+  async function statusLoop() {
+    await pollStatus();
+    setTimeout(statusLoop, 2000);
+  }
+  statusLoop();
 
   // ---------- Config ----------
 
   async function loadConfig() {
     try {
-      const res = await fetch('/api/config');
-      state.config = await res.json();
+      state.config = await requestJson('/api/config');
       if (state.config.defaultCountryCode) countryCodeInput.value = state.config.defaultCountryCode;
     } catch (err) {
       /* fall back to defaults already in the UI */
@@ -154,13 +212,7 @@
     formData.append('countryCode', countryCodeInput.value || '966');
 
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        uploadError.textContent = data.error || 'فشل تحميل الملف / Upload failed';
-        uploadError.classList.remove('hidden');
-        return;
-      }
+      const data = await requestJson('/api/upload', { method: 'POST', body: formData });
       state.validRecipients = data.valid;
       state.hasNameColumn = data.hasNameColumn;
 
@@ -184,7 +236,7 @@
       updateSendAvailability();
       updateMessagePreview();
     } catch (err) {
-      uploadError.textContent = 'تعذر الاتصال بالخادم / Cannot reach server';
+      uploadError.textContent = err.message || 'تعذر الاتصال بالخادم / Cannot reach server';
       uploadError.classList.remove('hidden');
     }
   }
@@ -218,8 +270,7 @@
 
   async function loadContactLists() {
     try {
-      const res = await fetch('/api/contact-lists');
-      renderContactLists(await res.json());
+      renderContactLists(await requestJson('/api/contact-lists'));
     } catch (err) {
       contactListList.innerHTML = '';
     }
@@ -263,7 +314,7 @@
 
   async function removeContactList(id) {
     try {
-      await fetch(`/api/contact-lists/${id}`, { method: 'DELETE' });
+      await requestJson(`/api/contact-lists/${id}`, { method: 'DELETE' });
       loadContactLists();
     } catch (err) {
       /* list stays as-is until next reload */
@@ -280,7 +331,7 @@
 
     saveListBtn.disabled = true;
     try {
-      const res = await fetch('/api/contact-lists', {
+      await requestJson('/api/contact-lists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -288,11 +339,6 @@
           recipients: state.validRecipients.map((r) => ({ number: r.number, name: r.name }))
         })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'فشل حفظ القائمة / Failed to save list');
-        return;
-      }
       loadContactLists();
     } catch (err) {
       alert('تعذر الاتصال بالخادم / Cannot reach server');
@@ -307,8 +353,7 @@
 
   async function loadHistory() {
     try {
-      const res = await fetch('/api/send/history');
-      renderHistory(await res.json());
+      renderHistory(await requestJson('/api/send/history'));
     } catch (err) {
       historyList.innerHTML = '';
     }
@@ -349,7 +394,7 @@
 
       const downloadLink = document.createElement('a');
       downloadLink.className = 'btn btn-secondary';
-      downloadLink.href = `/api/send/results.xlsx?batchId=${encodeURIComponent(b.batchId)}`;
+      downloadLink.href = apiUrl(`/api/send/results.xlsx?batchId=${encodeURIComponent(b.batchId)}`);
       downloadLink.textContent = 'تحميل النتائج / Download';
       actions.appendChild(downloadLink);
 
@@ -369,8 +414,7 @@
 
   async function retryFailed(batchId) {
     try {
-      const res = await fetch(`/api/send/history/${encodeURIComponent(batchId)}/failed`);
-      const failed = await res.json();
+      const failed = await requestJson(`/api/send/history/${encodeURIComponent(batchId)}/failed`);
       if (!failed.length) {
         alert('لا يوجد أرقام فاشلة لإعادة الإرسال / No failed numbers to retry');
         return;
@@ -402,7 +446,13 @@
   }
 
   mediaInput.addEventListener('change', async () => {
-    if (!mediaInput.files.length) return;
+    state.media = null;
+    updateMessagePreview();
+    if (!mediaInput.files.length) {
+      mediaInfo.textContent = '';
+      mediaInfo.classList.add('hidden');
+      return;
+    }
     const file = mediaInput.files[0];
     const formData = new FormData();
     formData.append('media', file);
@@ -411,18 +461,14 @@
     mediaInfo.classList.remove('hidden');
 
     try {
-      const res = await fetch('/api/media/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        mediaInfo.textContent = data.error || 'فشل رفع المرفق / Attachment upload failed';
-        state.media = null;
-        return;
-      }
+      const data = await requestJson('/api/media/upload', { method: 'POST', body: formData });
       state.media = data;
       mediaInfo.textContent = `تم إرفاق: ${data.originalName} / Attached: ${data.originalName}`;
       updateMessagePreview();
     } catch (err) {
-      mediaInfo.textContent = 'تعذر الاتصال بالخادم / Cannot reach server';
+      mediaInfo.textContent =
+        err instanceof Error ? err.message : 'تعذر الاتصال بالخادم / Cannot reach server';
+      updateMessagePreview();
     }
   });
 
@@ -430,8 +476,7 @@
 
   async function loadTemplates() {
     try {
-      const res = await fetch('/api/message-templates');
-      renderTemplates(await res.json());
+      renderTemplates(await requestJson('/api/message-templates'));
     } catch (err) {
       templateList.innerHTML = '';
     }
@@ -489,7 +534,7 @@
 
   async function removeTemplate(id) {
     try {
-      await fetch(`/api/message-templates/${id}`, { method: 'DELETE' });
+      await requestJson(`/api/message-templates/${id}`, { method: 'DELETE' });
       loadTemplates();
     } catch (err) {
       /* list just stays as-is until the next reload */
@@ -506,7 +551,7 @@
 
     saveTemplateBtn.disabled = true;
     try {
-      const res = await fetch('/api/message-templates', {
+      await requestJson('/api/message-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -514,7 +559,6 @@
           message: messageInput.value,
           media: state.media
             ? {
-                path: state.media.path,
                 filename: state.media.filename,
                 originalName: state.media.originalName,
                 mimetype: state.media.mimetype
@@ -522,11 +566,6 @@
             : null
         })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'فشل حفظ القالب / Failed to save template');
-        return;
-      }
       loadTemplates();
     } catch (err) {
       alert('تعذر الاتصال بالخادم / Cannot reach server');
@@ -559,27 +598,21 @@
     const payload = {
       recipients: state.validRecipients.map((r) => ({ number: r.number, name: r.name })),
       message: messageInput.value,
-      media: state.media ? { path: state.media.path } : null
+      media: state.media ? { filename: state.media.filename } : null
     };
 
     try {
-      const res = await fetch('/api/send', {
+      const data = await requestJson('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'فشل بدء الإرسال / Failed to start send');
-        sendBtn.disabled = false;
-        return;
-      }
       state.sendRunning = true;
       state.lastBatchId = data.batchId;
       progressWrap.classList.remove('hidden');
       pollProgress();
     } catch (err) {
-      alert('تعذر الاتصال بالخادم / Cannot reach server');
+      alert(err instanceof Error ? err.message : 'تعذر الاتصال بالخادم / Cannot reach server');
       sendBtn.disabled = false;
     }
   });
@@ -587,32 +620,61 @@
   cancelBtn.addEventListener('click', async () => {
     cancelBtn.disabled = true;
     try {
-      await fetch('/api/send/cancel', { method: 'POST' });
+      await requestJson('/api/send/cancel', { method: 'POST' });
     } finally {
       cancelBtn.disabled = false;
     }
   });
 
   let progressTimer = null;
+  let progressInFlight = false;
   function pollProgress() {
-    if (progressTimer) clearInterval(progressTimer);
-    progressTimer = setInterval(async () => {
+    if (progressTimer) clearTimeout(progressTimer);
+    const tick = async () => {
+      if (progressInFlight) {
+        progressTimer = setTimeout(tick, 1500);
+        return;
+      }
+      progressInFlight = true;
       try {
-        const res = await fetch('/api/send/progress');
-        const p = await res.json();
+        const p = await requestJson('/api/send/progress');
         renderProgress(p);
         if (!p.running) {
-          clearInterval(progressTimer);
           progressTimer = null;
           state.sendRunning = false;
           resultsWrap.classList.remove('hidden');
-          downloadResults.href = `/api/send/results.xlsx?batchId=${encodeURIComponent(p.batchId)}`;
+          downloadResults.href = apiUrl(`/api/send/results.xlsx?batchId=${encodeURIComponent(p.batchId)}`);
           updateSendAvailability();
+          return;
         }
       } catch (err) {
         /* keep retrying on next tick */
+      } finally {
+        progressInFlight = false;
       }
-    }, 1500);
+      progressTimer = setTimeout(tick, 1500);
+    };
+    tick();
+  }
+
+  async function resumeSendProgress() {
+    try {
+      const p = await requestJson('/api/send/progress');
+      if (!p.batchId) return;
+      state.lastBatchId = p.batchId;
+      state.sendRunning = Boolean(p.running);
+      progressWrap.classList.remove('hidden');
+      renderProgress(p);
+      if (p.running) {
+        pollProgress();
+      } else {
+        resultsWrap.classList.remove('hidden');
+        downloadResults.href = apiUrl(`/api/send/results.xlsx?batchId=${encodeURIComponent(p.batchId)}`);
+      }
+      updateSendAvailability();
+    } catch (err) {
+      /* status polling already reports backend/auth failures */
+    }
   }
 
   function renderProgress(p) {
@@ -623,4 +685,6 @@
     failedCountEl.textContent = p.failed;
     notOnWaCountEl.textContent = p.notOnWhatsapp;
   }
+
+  resumeSendProgress();
 })();

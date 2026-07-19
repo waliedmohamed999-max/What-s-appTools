@@ -2,6 +2,7 @@ node_modules/
 landing-src/node_modules/
 landing-src/dist/
 .wwebjs_cache/
+storage/
 sessions/
 uploads/*
 !uploads/.gitkeep

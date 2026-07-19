@@ -1,6 +1,7 @@
 const fs = require('fs');
+const config = require('./config');
 
-const GRAPH_VERSION = 'v19.0';
+const GRAPH_VERSION = config.META_GRAPH_VERSION;
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 // Facebook Pages accept a direct file upload (multipart), so this works from

@@ -26,6 +26,13 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function interruptibleSleep(ms) {
+  const deadline = Date.now() + ms;
+  while (!state.cancelRequested && Date.now() < deadline) {
+    await sleep(Math.min(250, deadline - Date.now()));
+  }
+}
+
 function randomBetween(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -119,7 +126,7 @@ async function runBatch(recipients, message, media) {
 
     state.processed++;
     state.results.push(entry);
-    db.appendLog(entry);
+    await db.appendLog(entry);
 
     if (state.cancelRequested) break;
 
@@ -129,7 +136,7 @@ async function runBatch(recipients, message, media) {
       const delay = isBatchBoundary
         ? config.BATCH_PAUSE_MS
         : randomBetween(config.MIN_DELAY_MS, config.MAX_DELAY_MS);
-      await sleep(delay);
+      await interruptibleSleep(delay);
     }
   }
 
@@ -157,4 +164,9 @@ function buildResultsWorkbook(batchId) {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-module.exports = { startSend, requestCancel, isRunning, getProgress, getResults, buildResultsWorkbook };
+async function shutdown() {
+  requestCancel();
+  while (state.running) await sleep(100);
+}
+
+module.exports = { startSend, requestCancel, isRunning, getProgress, getResults, buildResultsWorkbook, shutdown };

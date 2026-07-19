@@ -51,7 +51,7 @@ export default function Products() {
   return (
     <PageShell maxWidth="max-w-5xl">
       <h1 className="text-[1.5rem] sm:text-[1.75rem] font-medium text-gray-900 tracking-tight mb-2">
-        Products
+        DMS Products
       </h1>
       <p className="text-[13px] text-gray-400 mb-8 sm:mb-10">
         أدوات صغيرة، لكل عمل ما يحتاجه فعلاً / Small tools, built for what a real business actually needs.

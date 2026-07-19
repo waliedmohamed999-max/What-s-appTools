@@ -19,8 +19,22 @@ createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
-          <Route path="/store-analyzer" element={<StoreAnalyzer />} />
-          <Route path="/campaign-calculator" element={<CampaignCalculator />} />
+          <Route
+            path="/store-analyzer"
+            element={
+              <RequireAuth>
+                <StoreAnalyzer />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/campaign-calculator"
+            element={
+              <RequireAuth>
+                <CampaignCalculator />
+              </RequireAuth>
+            }
+          />
           <Route
             path="/content-scheduler"
             element={

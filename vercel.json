@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm --prefix landing-src ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/products", "destination": "/index.html" },
+    { "source": "/store-analyzer", "destination": "/index.html" },
+    { "source": "/campaign-calculator", "destination": "/index.html" },
+    { "source": "/content-scheduler", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/register", "destination": "/index.html" }
+  ]
+}

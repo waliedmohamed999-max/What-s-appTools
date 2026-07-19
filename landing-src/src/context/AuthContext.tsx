@@ -1,60 +1,63 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { apiFetch } from '../lib/api';
 
 type User = { id: string; email: string };
 
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, ownerSetupToken?: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function parseJsonOrThrow(res: Response) {
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'حدث خطأ / Something went wrong');
-  return data;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((data) => setUser(data.user))
+    apiFetch<{ user: User | null }>('/api/auth/me')
+      .then((data) => {
+        setUser(data.user);
+        setError(null);
+      })
+      .catch((err) => {
+        setUser(null);
+        setError(err instanceof Error ? err.message : 'تعذر الاتصال بخادم DMS / Cannot reach the DMS server');
+      })
       .finally(() => setLoading(false));
   }, []);
 
   async function login(email: string, password: string) {
-    const res = await fetch('/api/auth/login', {
+    const data = await apiFetch<{ user: User }>('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const data = await parseJsonOrThrow(res);
     setUser(data.user);
+    setError(null);
   }
 
-  async function register(email: string, password: string) {
-    const res = await fetch('/api/auth/register', {
+  async function register(email: string, password: string, ownerSetupToken?: string) {
+    const data = await apiFetch<{ user: User }>('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, ownerSetupToken })
     });
-    const data = await parseJsonOrThrow(res);
     setUser(data.user);
+    setError(null);
   }
 
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await apiFetch('/api/auth/logout', { method: 'POST' });
     setUser(null);
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, error, login, register, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

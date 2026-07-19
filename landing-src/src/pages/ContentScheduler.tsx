@@ -20,8 +20,9 @@ import {
 } from 'lucide-react';
 import PageShell from '../components/PageShell';
 import BackLink from '../components/BackLink';
+import { apiFetch, apiUrl } from '../lib/api';
 
-type Media = { path: string; filename: string; originalName: string; mimetype: string } | null;
+type Media = { filename: string; originalName: string; mimetype: string } | null;
 
 type Post = {
   id: string;
@@ -77,6 +78,7 @@ function toDatetimeLocal(iso: string) {
 export default function ContentScheduler() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -95,6 +97,7 @@ export default function ContentScheduler() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [metaStatus, setMetaStatus] = useState<MetaStatus>({ connected: false, configured: false });
+  const [selectedMetaPageId, setSelectedMetaPageId] = useState('');
   const [metaMessage, setMetaMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
@@ -102,8 +105,10 @@ export default function ContentScheduler() {
   async function loadPosts() {
     setLoadingPosts(true);
     try {
-      const res = await fetch('/api/content/posts');
-      setPosts(await res.json());
+      setPosts(await apiFetch<Post[]>('/api/content/posts'));
+      setLoadError('');
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'تعذر تحميل المنشورات / Could not load posts');
     } finally {
       setLoadingPosts(false);
     }
@@ -111,8 +116,11 @@ export default function ContentScheduler() {
 
   async function loadMetaStatus() {
     try {
-      const res = await fetch('/api/meta/status');
-      setMetaStatus(await res.json());
+      const status = await apiFetch<MetaStatus>('/api/meta/status');
+      setMetaStatus(status);
+      setSelectedMetaPageId((current) =>
+        status.pages?.some((page) => page.id === current) ? current : status.pages?.[0]?.id || ''
+      );
     } catch (err) {
       /* connection panel just stays in its default state */
     }
@@ -133,8 +141,15 @@ export default function ContentScheduler() {
   }, []);
 
   async function disconnectMeta() {
-    await fetch('/api/meta/disconnect', { method: 'POST' });
-    loadMetaStatus();
+    try {
+      await apiFetch('/api/meta/disconnect', { method: 'POST' });
+      await loadMetaStatus();
+    } catch (err) {
+      setMetaMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'تعذر قطع الاتصال / Could not disconnect Meta'
+      });
+    }
   }
 
   async function publishPost(post: Post) {
@@ -145,19 +160,31 @@ export default function ContentScheduler() {
       return next;
     });
     try {
-      const res = await fetch(`/api/content/posts/${post.id}/publish`, {
+      const pages = metaStatus.pages || [];
+      const selectedPage = pages.find((page) => page.id === selectedMetaPageId);
+      const publishPage =
+        selectedPage && (post.platform !== 'instagram' || selectedPage.hasInstagram)
+          ? selectedPage
+          : pages.find((page) => post.platform !== 'instagram' || page.hasInstagram);
+      if (!publishPage) {
+        throw new Error(
+          post.platform === 'instagram'
+            ? 'اختر صفحة مرتبطة بحساب Instagram / Select a Page linked to Instagram'
+            : 'اختر صفحة Meta أولاً / Select a Meta Page first'
+        );
+      }
+
+      await apiFetch(`/api/content/posts/${post.id}/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageId: metaStatus.pages?.[0]?.id })
+        body: JSON.stringify({ pageId: publishPage.id })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setPublishErrors((prev) => ({ ...prev, [post.id]: data.error || 'فشل النشر / Publish failed' }));
-        return;
-      }
       loadPosts();
     } catch (err) {
-      setPublishErrors((prev) => ({ ...prev, [post.id]: 'تعذر الاتصال بالخادم / Cannot reach the server' }));
+      setPublishErrors((prev) => ({
+        ...prev,
+        [post.id]: err instanceof Error ? err.message : 'تعذر الاتصال بالخادم / Cannot reach the server'
+      }));
     } finally {
       setPublishingId(null);
     }
@@ -210,13 +237,10 @@ export default function ContentScheduler() {
       if (mediaFile) {
         const formData = new FormData();
         formData.append('media', mediaFile);
-        const uploadRes = await fetch('/api/media/upload', { method: 'POST', body: formData });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) {
-          setFormError(uploadData.error || 'فشل رفع الصورة / Failed to upload image');
-          return;
-        }
-        uploadedMedia = uploadData;
+        uploadedMedia = await apiFetch<NonNullable<Media>>('/api/media/upload', {
+          method: 'POST',
+          body: formData
+        });
       }
 
       const scheduledIso = scheduledAt ? new Date(scheduledAt).toISOString() : null;
@@ -224,53 +248,54 @@ export default function ContentScheduler() {
       if (editingId) {
         const patch: Record<string, unknown> = { platform: selectedPlatforms[0], caption, scheduledAt: scheduledIso };
         if (uploadedMedia) patch.media = uploadedMedia;
-        const res = await fetch(`/api/content/posts/${editingId}`, {
+        await apiFetch<Post>(`/api/content/posts/${editingId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(patch)
         });
-        const data = await res.json();
-        if (!res.ok) {
-          setFormError(data.error || 'فشل تحديث المنشور / Failed to update post');
-          return;
-        }
       } else {
-        for (const platform of selectedPlatforms) {
-          const res = await fetch('/api/content/posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ platform, caption, scheduledAt: scheduledIso, media: uploadedMedia })
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            setFormError(data.error || 'فشل حفظ المنشور / Failed to save post');
-            return;
-          }
-        }
+        await apiFetch<Post[]>('/api/content/posts/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platforms: selectedPlatforms,
+            caption,
+            scheduledAt: scheduledIso,
+            media: uploadedMedia
+          })
+        });
       }
 
       resetForm();
       setShowForm(false);
       await loadPosts();
     } catch (err) {
-      setFormError('تعذر الاتصال بالخادم / Cannot reach the server');
+      setFormError(err instanceof Error ? err.message : 'تعذر الاتصال بالخادم / Cannot reach the server');
     } finally {
       setSubmitting(false);
     }
   }
 
   async function markPosted(id: string) {
-    await fetch(`/api/content/posts/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'posted' })
-    });
-    loadPosts();
+    try {
+      await apiFetch(`/api/content/posts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'posted' })
+      });
+      await loadPosts();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'تعذر تحديث المنشور / Could not update post');
+    }
   }
 
   async function removePost(id: string) {
-    await fetch(`/api/content/posts/${id}`, { method: 'DELETE' });
-    loadPosts();
+    try {
+      await apiFetch(`/api/content/posts/${id}`, { method: 'DELETE' });
+      await loadPosts();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'تعذر حذف المنشور / Could not delete post');
+    }
   }
 
   async function copyCaption(post: Post) {
@@ -302,6 +327,13 @@ export default function ContentScheduler() {
 
   const strictestLimit = selectedPlatforms.length > 0 ? Math.min(...selectedPlatforms.map((p) => PLATFORM_LIMITS[p] ?? 2200)) : null;
   const overLimit = strictestLimit !== null && caption.length > strictestLimit;
+  const selectedMetaPage = metaStatus.pages?.find((page) => page.id === selectedMetaPageId);
+  const canPublishPost = (post: Post) =>
+    Boolean(
+      selectedMetaPage &&
+        (post.platform === 'facebook' ||
+          (post.platform === 'instagram' && post.media && selectedMetaPage.hasInstagram))
+    );
 
   return (
     <PageShell maxWidth="max-w-3xl">
@@ -324,6 +356,12 @@ export default function ContentScheduler() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="text-[12.5px] text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 mt-4">
+          {loadError}
+        </div>
+      )}
+
       {metaMessage && (
         <div
           className={`text-[12.5px] rounded-xl px-4 py-3 mt-4 border ${
@@ -340,12 +378,34 @@ export default function ContentScheduler() {
           اربط كل منصة على حدة لتقدر تنشر منها مباشرة بدل النسخ اليدوي.
         </p>
 
+        {metaStatus.connected && (metaStatus.pages?.length || 0) > 0 && (
+          <label className="block text-[11.5px] text-gray-500 mb-4">
+            صفحة النشر / Publishing Page
+            <select
+              value={selectedMetaPageId}
+              onChange={(event) => setSelectedMetaPageId(event.target.value)}
+              className="mt-1 w-full rounded-lg px-3 py-2.5 border border-gray-200 bg-white text-[13px] text-gray-900 focus:outline-none focus:border-blue-400"
+            >
+              {metaStatus.pages?.map((page) => (
+                <option key={page.id} value={page.id}>
+                  {page.name}{page.hasInstagram ? ' · Instagram' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {PLATFORMS.map((p) => {
             const isMeta = p.key === 'facebook' || p.key === 'instagram';
-            const igLinked = metaStatus.pages?.some((page) => page.hasInstagram) ?? false;
-            const connected = p.key === 'facebook' ? metaStatus.connected : p.key === 'instagram' ? metaStatus.connected && igLinked : false;
-            const needsInstagramLink = p.key === 'instagram' && metaStatus.connected && !igLinked;
+            const connected =
+              p.key === 'facebook'
+                ? Boolean(metaStatus.connected && selectedMetaPage)
+                : p.key === 'instagram'
+                  ? Boolean(metaStatus.connected && selectedMetaPage?.hasInstagram)
+                  : false;
+            const needsInstagramLink =
+              p.key === 'instagram' && Boolean(metaStatus.connected && selectedMetaPage && !selectedMetaPage.hasInstagram);
 
             return (
               <div key={p.key} className="border border-gray-100 rounded-xl p-4 flex flex-col items-start gap-2">
@@ -376,7 +436,7 @@ export default function ContentScheduler() {
                   <>
                     <span className="text-[11px] text-amber-600">لا يوجد حساب انستغرام مرتبط بالصفحة / No Instagram linked</span>
                     <a
-                      href="/api/meta/auth"
+                      href={apiUrl('/api/meta/auth')}
                       className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-500 hover:text-blue-600"
                     >
                       <Link2 size={11} /> إعادة الربط / Reconnect
@@ -390,7 +450,7 @@ export default function ContentScheduler() {
 
                 {isMeta && !connected && !needsInstagramLink && metaStatus.configured && (
                   <a
-                    href="/api/meta/auth"
+                    href={apiUrl('/api/meta/auth')}
                     className="inline-flex items-center gap-1.5 text-[12px] font-medium text-white rounded-lg px-3.5 py-2.5 transition-colors"
                     style={{ backgroundColor: p.color }}
                   >
@@ -483,7 +543,11 @@ export default function ContentScheduler() {
             </label>
 
             {existingMedia && !mediaFile && (
-              <img src={`/uploads/${existingMedia.filename}`} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
+              <img
+                src={apiUrl(`/uploads/${existingMedia.filename}`)}
+                alt=""
+                className="w-10 h-10 rounded-lg object-cover border border-gray-100"
+              />
             )}
           </div>
 
@@ -524,7 +588,7 @@ export default function ContentScheduler() {
           </button>
         </div>
         <a
-          href="/api/content/posts/export.xlsx"
+          href={apiUrl('/api/content/posts/export.xlsx')}
           className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-500 hover:text-blue-600 transition-colors"
         >
           <Download size={12} /> تصدير الجدول / Export
@@ -543,7 +607,7 @@ export default function ContentScheduler() {
             onCopy={copyCaption}
             onEdit={startEdit}
             copiedId={copiedId}
-            canPublish={metaStatus.connected}
+            canPublish={canPublishPost}
             onPublish={publishPost}
             publishingId={publishingId}
             publishErrors={publishErrors}
@@ -576,7 +640,7 @@ function PostSection({
   onCopy,
   onEdit,
   copiedId,
-  canPublish = false,
+  canPublish = () => false,
   onPublish,
   publishingId = null,
   publishErrors = {}
@@ -588,7 +652,7 @@ function PostSection({
   onCopy: (post: Post) => void;
   onEdit: (post: Post) => void;
   copiedId: string | null;
-  canPublish?: boolean;
+  canPublish?: (post: Post) => boolean;
   onPublish?: (post: Post) => void;
   publishingId?: string | null;
   publishErrors?: Record<string, string>;
@@ -604,12 +668,12 @@ function PostSection({
         {posts.map((post) => {
           const info = platformInfo(post.platform);
           const overdue = post.status === 'scheduled' && post.scheduledAt && new Date(post.scheduledAt).getTime() < now;
-          const publishable = canPublish && (post.platform === 'facebook' || post.platform === 'instagram');
+          const publishable = canPublish(post);
           return (
             <div key={post.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex gap-4">
               {post.media && (
                 <img
-                  src={`/uploads/${post.media.filename}`}
+                  src={apiUrl(`/uploads/${post.media.filename}`)}
                   alt=""
                   className="w-16 h-16 rounded-xl object-cover shrink-0 border border-gray-100"
                 />

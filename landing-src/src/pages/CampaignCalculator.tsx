@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Save, Download, Trash2, FolderOpen, Loader2 } from 'lucide-react';
 import PageShell from '../components/PageShell';
 import BackLink from '../components/BackLink';
+import { apiFetch, apiUrl } from '../lib/api';
 
 type Channel = { name: string; pct: number; cpc: number; conversionRate: number };
 
@@ -33,6 +34,13 @@ function formatNumber(n: number) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
 }
 
+function clampNumber(value: string | number, min: number, max: number, integer = false) {
+  const parsed = Number(value);
+  const finite = Number.isFinite(parsed) ? parsed : min;
+  const clamped = Math.min(max, Math.max(min, finite));
+  return integer ? Math.round(clamped) : clamped;
+}
+
 export default function CampaignCalculator() {
   const [totalBudget, setTotalBudget] = useState(10000);
   const [durationDays, setDurationDays] = useState(30);
@@ -52,7 +60,16 @@ export default function CampaignCalculator() {
 
   function normalize() {
     if (pctSum === 0) return;
-    setChannels((prev) => prev.map((c) => ({ ...c, pct: Math.round((c.pct / pctSum) * 100) })));
+    setChannels((prev) => {
+      const normalized = prev.map((c) => ({ ...c, pct: Math.round((c.pct / pctSum) * 10000) / 100 }));
+      const roundedTotal = normalized.reduce((sum, c) => sum + c.pct, 0);
+      const largestIndex = normalized.reduce((best, c, index, all) => (c.pct > all[best].pct ? index : best), 0);
+      normalized[largestIndex] = {
+        ...normalized[largestIndex],
+        pct: Math.round((normalized[largestIndex].pct + (100 - roundedTotal)) * 100) / 100
+      };
+      return normalized;
+    });
   }
 
   const rows: ChannelRow[] = useMemo(
@@ -72,9 +89,10 @@ export default function CampaignCalculator() {
   const totalClicks = rows.reduce((s, r) => s + r.estimatedClicks, 0);
   const totalLeads = rows.reduce((s, r) => s + r.estimatedLeads, 0);
   const totalRevenue = rows.reduce((s, r) => s + r.estimatedRevenue, 0);
-  const avgCostPerLead = totalLeads > 0 ? totalBudget / totalLeads : 0;
-  const overallRoas = totalBudget > 0 ? totalRevenue / totalBudget : 0;
-  const dailyBudget = durationDays > 0 ? totalBudget / durationDays : 0;
+  const allocatedBudget = rows.reduce((s, r) => s + r.channelBudget, 0);
+  const avgCostPerLead = totalLeads > 0 ? allocatedBudget / totalLeads : 0;
+  const overallRoas = allocatedBudget > 0 ? totalRevenue / allocatedBudget : 0;
+  const dailyBudget = durationDays > 0 ? allocatedBudget / durationDays : 0;
 
   const weeks = useMemo(() => {
     const numWeeks = Math.max(1, Math.ceil(durationDays / 7));
@@ -89,8 +107,7 @@ export default function CampaignCalculator() {
 
   async function loadPlans() {
     try {
-      const res = await fetch('/api/campaign-plans');
-      setPlans(await res.json());
+      setPlans(await apiFetch<SavedPlan[]>('/api/campaign-plans'));
     } catch (err) {
       /* saved plans are a nice-to-have, ignore failures */
     }
@@ -108,39 +125,51 @@ export default function CampaignCalculator() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/campaign-plans', {
+      await apiFetch<SavedPlan>('/api/campaign-plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: planName,
           inputs: { totalBudget, durationDays, aov, channels },
-          computed: { rows, totals: { totalClicks, totalLeads, totalRevenue, overallRoas, avgCostPerLead, dailyBudget } }
+          computed: {
+            rows,
+            totals: { allocatedBudget, totalClicks, totalLeads, totalRevenue, overallRoas, avgCostPerLead, dailyBudget }
+          }
         })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setSaveError(data.error || 'فشل حفظ الخطة / Failed to save plan');
-        return;
-      }
       setPlanName('');
       loadPlans();
     } catch (err) {
-      setSaveError('تعذر الاتصال بالخادم / Cannot reach the server');
+      setSaveError(err instanceof Error ? err.message : 'تعذر الاتصال بالخادم / Cannot reach the server');
     } finally {
       setSaving(false);
     }
   }
 
   function loadPlan(plan: SavedPlan) {
-    setTotalBudget(plan.inputs.totalBudget);
-    setDurationDays(plan.inputs.durationDays);
-    setAov(plan.inputs.aov);
-    setChannels(plan.inputs.channels);
+    setTotalBudget(clampNumber(plan.inputs.totalBudget, 0, 1_000_000_000));
+    setDurationDays(clampNumber(plan.inputs.durationDays, 1, 3650, true));
+    setAov(clampNumber(plan.inputs.aov, 0, 100_000_000));
+    const savedChannels =
+      Array.isArray(plan.inputs.channels) && plan.inputs.channels.length > 0 ? plan.inputs.channels : DEFAULT_CHANNELS;
+    setChannels(
+      savedChannels.map((channel) => ({
+        ...channel,
+        pct: clampNumber(channel.pct, 0, 100),
+        cpc: clampNumber(channel.cpc, 0, 1_000_000),
+        conversionRate: clampNumber(channel.conversionRate, 0, 100)
+      }))
+    );
   }
 
   async function deletePlan(id: string) {
-    await fetch(`/api/campaign-plans/${id}`, { method: 'DELETE' });
-    loadPlans();
+    setSaveError('');
+    try {
+      await apiFetch(`/api/campaign-plans/${id}`, { method: 'DELETE' });
+      await loadPlans();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'تعذر حذف الخطة / Could not delete plan');
+    }
   }
 
   return (
@@ -161,7 +190,7 @@ export default function CampaignCalculator() {
               type="number"
               min={0}
               value={totalBudget}
-              onChange={(e) => setTotalBudget(Number(e.target.value) || 0)}
+              onChange={(e) => setTotalBudget(clampNumber(e.target.value, 0, 1_000_000_000))}
               className="mt-1 w-full rounded-lg px-3 py-3 border border-gray-200 text-[16px] sm:text-[13px] text-gray-900 focus:outline-none focus:border-blue-400"
             />
           </label>
@@ -171,7 +200,7 @@ export default function CampaignCalculator() {
               type="number"
               min={1}
               value={durationDays}
-              onChange={(e) => setDurationDays(Number(e.target.value) || 1)}
+              onChange={(e) => setDurationDays(clampNumber(e.target.value, 1, 3650, true))}
               className="mt-1 w-full rounded-lg px-3 py-3 border border-gray-200 text-[16px] sm:text-[13px] text-gray-900 focus:outline-none focus:border-blue-400"
             />
           </label>
@@ -181,7 +210,7 @@ export default function CampaignCalculator() {
               type="number"
               min={0}
               value={aov}
-              onChange={(e) => setAov(Number(e.target.value) || 0)}
+              onChange={(e) => setAov(clampNumber(e.target.value, 0, 100_000_000))}
               className="mt-1 w-full rounded-lg px-3 py-3 border border-gray-200 text-[16px] sm:text-[13px] text-gray-900 focus:outline-none focus:border-blue-400"
             />
           </label>
@@ -219,9 +248,9 @@ export default function CampaignCalculator() {
         <div className="space-y-5">
           {rows.map((row, i) => (
             <div key={row.name} className="border border-gray-100 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 mb-3">
                 <span className="text-[13px] font-medium text-gray-800">{row.name}</span>
-                <span className="text-[11.5px] text-gray-400">
+                <span className="text-[11.5px] text-gray-400 sm:text-right leading-relaxed">
                   {formatNumber(row.channelBudget)} SAR · {formatNumber(row.estimatedClicks)} نقرة ·{' '}
                   {formatNumber(row.estimatedLeads)} عميل · {formatNumber(row.costPerLead)} SAR/عميل ·{' '}
                   {formatNumber(row.estimatedRevenue)} SAR إيراد · {row.roas.toFixed(2)}x ROAS
@@ -236,7 +265,7 @@ export default function CampaignCalculator() {
                     min={0}
                     max={100}
                     value={row.pct}
-                    onChange={(e) => updateChannel(i, { pct: Number(e.target.value) || 0 })}
+                    onChange={(e) => updateChannel(i, { pct: clampNumber(e.target.value, 0, 100) })}
                     className="mt-1 w-full rounded-lg px-2 py-2 border border-gray-200 text-[16px] sm:text-[12.5px] text-gray-900 focus:outline-none focus:border-blue-400"
                   />
                 </label>
@@ -247,7 +276,7 @@ export default function CampaignCalculator() {
                     min={0}
                     step={0.1}
                     value={row.cpc}
-                    onChange={(e) => updateChannel(i, { cpc: Number(e.target.value) || 0 })}
+                    onChange={(e) => updateChannel(i, { cpc: clampNumber(e.target.value, 0, 1_000_000) })}
                     className="mt-1 w-full rounded-lg px-2 py-2 border border-gray-200 text-[16px] sm:text-[12.5px] text-gray-900 focus:outline-none focus:border-blue-400"
                   />
                 </label>
@@ -258,7 +287,9 @@ export default function CampaignCalculator() {
                     min={0}
                     step={0.1}
                     value={row.conversionRate}
-                    onChange={(e) => updateChannel(i, { conversionRate: Number(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      updateChannel(i, { conversionRate: clampNumber(e.target.value, 0, 100) })
+                    }
                     className="mt-1 w-full rounded-lg px-2 py-2 border border-gray-200 text-[16px] sm:text-[12.5px] text-gray-900 focus:outline-none focus:border-blue-400"
                   />
                 </label>
@@ -271,9 +302,9 @@ export default function CampaignCalculator() {
           ))}
         </div>
 
-        {pctSum !== 100 && (
+        {Math.abs(pctSum - 100) > 0.001 && (
           <p className="text-[11.5px] text-amber-600 mt-4">
-            مجموع النسب {pctSum}% وليس 100% — النتائج تفترض الميزانية الكاملة موزعة بهذه النسب.
+            مجموع النسب {Math.round(pctSum * 100) / 100}% وليس 100% — الملخص يعرض المبلغ الموزع فعليًا. اضغط ضبط لـ 100%.
           </p>
         )}
       </div>
@@ -335,7 +366,7 @@ export default function CampaignCalculator() {
                     <FolderOpen size={14} />
                   </button>
                   <a
-                    href={`/api/campaign-plans/${plan.id}/export.xlsx`}
+                    href={apiUrl(`/api/campaign-plans/${plan.id}/export.xlsx`)}
                     title="تصدير / Export"
                     className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-emerald-600 hover:border-emerald-300 transition-colors duration-200"
                   >

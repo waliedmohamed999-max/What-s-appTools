@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const XLSX = require('xlsx');
@@ -23,9 +24,49 @@ const sendHistory = require('./sendHistory');
 const contactListStore = require('./contactListStore');
 
 const app = express();
+const authAttempts = new Map();
 
+app.disable('x-powered-by');
+app.set('trust proxy', config.TRUST_PROXY ? 1 : false);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin) return next();
+
+  const normalizedOrigin = origin.replace(/\/$/, '');
+  const requestOrigin = `${req.protocol}://${req.get('host')}`;
+  if (normalizedOrigin !== requestOrigin && !config.FRONTEND_ORIGINS.includes(normalizedOrigin)) {
+    return res.status(403).json({ error: 'Origin is not allowed' });
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.setHeader('Vary', 'Origin');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+function limitAuthAttempts(req, res, next) {
+  const now = Date.now();
+  if (authAttempts.size > 1000) {
+    for (const [attemptKey, attempt] of authAttempts) {
+      if (attempt.resetAt <= now || authAttempts.size > 1000) authAttempts.delete(attemptKey);
+    }
+  }
+  const key = req.ip;
+  const current = authAttempts.get(key);
+  const entry = !current || current.resetAt <= now ? { count: 0, resetAt: now + 15 * 60 * 1000 } : current;
+  entry.count += 1;
+  authAttempts.set(key, entry);
+  if (entry.count > 20) {
+    res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+    return res.status(429).json({ error: 'محاولات كثيرة، حاول لاحقاً / Too many attempts; try again later' });
+  }
+  next();
+}
 
 function requireAuth(req, res, next) {
   const token = cookies.getSessionToken(req);
@@ -35,22 +76,106 @@ function requireAuth(req, res, next) {
   next();
 }
 
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const UPLOADS_DIR = config.UPLOADS_DIR;
+for (const directory of [config.DATA_DIR, config.SESSIONS_DIR, config.UPLOADS_DIR]) {
+  if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
+}
 
 // Needed so the Content Scheduler can preview uploaded post images in the browser.
 // This is a single-user local tool, so exposing /uploads is acceptable.
-app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/uploads', requireAuth, express.static(UPLOADS_DIR));
 
 // Shared by /api/send and /api/content/posts (create + edit): a client-supplied media
 // reference must resolve to a real file already inside our own uploads/ directory.
 function resolveSafeMedia(media) {
-  if (!media || !media.path) return null;
-  const resolved = path.resolve(media.path);
-  if (!resolved.startsWith(UPLOADS_DIR) || !fs.existsSync(resolved)) {
+  if (!media) return null;
+  const filename = path.basename(String(media.filename || media.path || ''));
+  if (!filename) return null;
+  const resolved = path.resolve(UPLOADS_DIR, filename);
+  const relative = path.relative(UPLOADS_DIR, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(resolved)) {
     throw new Error('مرفق غير صالح / Invalid attachment');
   }
-  return { path: resolved, filename: media.filename, originalName: media.originalName, mimetype: media.mimetype };
+  return {
+    path: resolved,
+    filename,
+    originalName: media.originalName || filename,
+    mimetype: media.mimetype || 'application/octet-stream'
+  };
+}
+
+function publicMedia(media) {
+  if (!media) return null;
+  return {
+    filename: media.filename,
+    originalName: media.originalName,
+    mimetype: media.mimetype,
+    size: media.size
+  };
+}
+
+function publicPost(post) {
+  return post ? { ...post, media: publicMedia(post.media) } : post;
+}
+
+function signPublicMedia(filename, expires) {
+  return crypto
+    .createHmac('sha256', config.MEDIA_SIGNING_SECRET)
+    .update(`${filename}:${expires}`)
+    .digest('hex');
+}
+
+function signedPublicMediaUrl(media) {
+  if (!config.META_PUBLIC_BASE_URL) {
+    throw new Error(
+      'يجب ضبط META_PUBLIC_BASE_URL برابط عام حتى يعمل النشر على انستغرام / META_PUBLIC_BASE_URL must be set to a public URL for Instagram publishing to work'
+    );
+  }
+  if (!config.MEDIA_SIGNING_SECRET) {
+    throw new Error(
+      'يجب ضبط MEDIA_SIGNING_SECRET أو META_APP_SECRET / MEDIA_SIGNING_SECRET or META_APP_SECRET must be configured'
+    );
+  }
+  const filename = path.basename(media.filename);
+  const expires = Math.floor(Date.now() / 1000) + 10 * 60;
+  const signature = signPublicMedia(filename, expires);
+  return `${config.META_PUBLIC_BASE_URL}/public-media/${encodeURIComponent(filename)}?expires=${expires}&signature=${signature}`;
+}
+
+// Meta cannot send the owner's session cookie when it downloads an Instagram
+// image. Keep uploads private and expose only a ten-minute, HMAC-signed URL.
+app.get('/public-media/:filename', (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const expires = Number(req.query.expires);
+    const signature = String(req.query.signature || '');
+    const now = Math.floor(Date.now() / 1000);
+    if (
+      !config.MEDIA_SIGNING_SECRET ||
+      !filename ||
+      !Number.isSafeInteger(expires) ||
+      expires < now ||
+      expires > now + 15 * 60 ||
+      !/^[a-f0-9]{64}$/i.test(signature)
+    ) {
+      return res.status(403).json({ error: 'رابط الملف غير صالح أو منتهي / Invalid or expired media link' });
+    }
+
+    const expected = signPublicMedia(filename, expires);
+    if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
+      return res.status(403).json({ error: 'رابط الملف غير صالح أو منتهي / Invalid or expired media link' });
+    }
+
+    const media = resolveSafeMedia({ filename });
+    res.set('Cache-Control', 'private, no-store');
+    return res.sendFile(media.path);
+  } catch (err) {
+    return res.status(404).json({ error: 'الملف غير موجود / Media not found' });
+  }
+});
+
+function frontendRedirect(pathname) {
+  return config.PUBLIC_APP_URL ? `${config.PUBLIC_APP_URL}${pathname}` : pathname;
 }
 
 // Excel files are small and only need to be parsed once, so memory storage is enough.
@@ -68,7 +193,8 @@ const excelUpload = multer({
 // so they need to live on disk.
 const mediaStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => cb(null, `media_${Date.now()}${path.extname(file.originalname)}`)
+  filename: (req, file, cb) =>
+    cb(null, `media_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.upload`)
 });
 const mediaUpload = multer({
   storage: mediaStorage,
@@ -80,6 +206,28 @@ const mediaUpload = multer({
   }
 });
 
+function inspectMediaFile(filePath) {
+  const header = Buffer.alloc(12);
+  const fd = fs.openSync(filePath, 'r');
+  let bytesRead;
+  try {
+    bytesRead = fs.readSync(fd, header, 0, header.length, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+  const hex = header.subarray(0, bytesRead).toString('hex');
+  if (hex.startsWith('ffd8ff')) return { mimetype: 'image/jpeg', extension: '.jpg' };
+  if (hex.startsWith('89504e470d0a1a0a')) return { mimetype: 'image/png', extension: '.png' };
+  if (header.subarray(0, 6).toString('ascii') === 'GIF87a' || header.subarray(0, 6).toString('ascii') === 'GIF89a') {
+    return { mimetype: 'image/gif', extension: '.gif' };
+  }
+  if (header.subarray(0, 4).toString('ascii') === 'RIFF' && header.subarray(8, 12).toString('ascii') === 'WEBP') {
+    return { mimetype: 'image/webp', extension: '.webp' };
+  }
+  if (header.subarray(0, 5).toString('ascii') === '%PDF-') return { mimetype: 'application/pdf', extension: '.pdf' };
+  return null;
+}
+
 app.get('/api/config', (req, res) => {
   res.json({
     defaultCountryCode: config.DEFAULT_COUNTRY_CODE,
@@ -87,26 +235,69 @@ app.get('/api/config', (req, res) => {
     maxDelayMs: config.MAX_DELAY_MS,
     batchSize: config.BATCH_SIZE,
     batchPauseMs: config.BATCH_PAUSE_MS,
-    maxValidNumbers: config.MAX_VALID_NUMBERS
+    maxValidNumbers: config.MAX_VALID_NUMBERS,
+    ownerSetupTokenRequired: !auth.hasUsers() && Boolean(config.OWNER_SETUP_TOKEN)
   });
 });
 
-app.post('/api/auth/register', (req, res) => {
+app.get('/api/health', (req, res) => {
+  let storageWritable = true;
   try {
+    for (const directory of [config.DATA_DIR, config.SESSIONS_DIR, config.UPLOADS_DIR]) {
+      fs.accessSync(directory, fs.constants.W_OK);
+    }
+  } catch (err) {
+    storageWritable = false;
+  }
+  const whatsappState = whatsapp.getState();
+  res.set('Cache-Control', 'no-store');
+  res.status(storageWritable ? 200 : 503).json({
+    ok: storageWritable,
+    service: 'DMS API',
+    whatsappEnabled: !config.DISABLE_WHATSAPP,
+    whatsappStatus: whatsappState.status,
+    whatsappDegraded: !config.DISABLE_WHATSAPP && Boolean(whatsappState.error),
+    persistentStorageConfigured: Boolean(process.env.STORAGE_DIR),
+    storageWritable
+  });
+});
+
+app.post('/api/auth/register', limitAuthAttempts, (req, res) => {
+  try {
+    const hasUsers = auth.hasUsers();
+    if (hasUsers) {
+      return res.status(403).json({
+        error: 'تم إنشاء حساب مالك DMS بالفعل / The DMS owner account has already been created'
+      });
+    }
+    if (!hasUsers && config.OWNER_SETUP_TOKEN) {
+      const supplied = Buffer.from(String(req.body.ownerSetupToken || ''));
+      const expected = Buffer.from(config.OWNER_SETUP_TOKEN);
+      if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+        return res.status(403).json({
+          error: 'رمز إعداد المالك غير صحيح / Invalid owner setup token'
+        });
+      }
+    }
+    if (!hasUsers && process.env.NODE_ENV === 'production' && !config.OWNER_SETUP_TOKEN) {
+      return res.status(503).json({
+        error: 'اضبط OWNER_SETUP_TOKEN قبل إنشاء المالك / Configure OWNER_SETUP_TOKEN before creating the owner account'
+      });
+    }
     const user = auth.registerUser(req.body.email, req.body.password);
     const { token } = auth.createSession(user.id);
-    cookies.setSessionCookie(res, token);
+    cookies.setSessionCookie(res, token, req);
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', limitAuthAttempts, (req, res) => {
   try {
     const user = auth.loginUser(req.body.email, req.body.password);
     const { token } = auth.createSession(user.id);
-    cookies.setSessionCookie(res, token);
+    cookies.setSessionCookie(res, token, req);
     res.json({ user });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -115,7 +306,7 @@ app.post('/api/auth/login', (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => {
   auth.deleteSession(cookies.getSessionToken(req));
-  cookies.clearSessionCookie(res);
+  cookies.clearSessionCookie(res, req);
   res.json({ ok: true });
 });
 
@@ -125,7 +316,14 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ user });
 });
 
+// Everything below this point is private. DMS is intentionally a single-owner toolkit.
+app.use('/api', (req, res, next) => {
+  if (req.path === '/meta/callback') return next();
+  return requireAuth(req, res, next);
+});
+
 app.get('/api/status', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.json(whatsapp.getState());
 });
 
@@ -174,13 +372,26 @@ app.post('/api/media/upload', (req, res) => {
   mediaUpload.single('media')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'لم يتم إرفاق ملف / No file uploaded' });
-    res.json({
-      path: req.file.path,
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    });
+    try {
+      const detected = inspectMediaFile(req.file.path);
+      if (!detected) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          error: 'الملف ليس صورة JPEG/PNG/GIF/WebP أو PDF صالحاً / File is not a valid JPEG, PNG, GIF, WebP, or PDF'
+        });
+      }
+      const filename = `${path.basename(req.file.filename, '.upload')}${detected.extension}`;
+      fs.renameSync(req.file.path, path.join(UPLOADS_DIR, filename));
+      return res.json({
+        filename,
+        originalName: req.file.originalname,
+        mimetype: detected.mimetype,
+        size: req.file.size
+      });
+    } catch (uploadErr) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(500).json({ error: 'تعذر حفظ الملف / Could not store the media file' });
+    }
   });
 });
 
@@ -209,7 +420,12 @@ app.get('/api/template/download', (req, res) => {
 });
 
 app.get('/api/message-templates', (req, res) => {
-  res.json(templateStore.listTemplates());
+  res.json(
+    templateStore.listTemplates().map((template) => ({
+      ...template,
+      media: publicMedia(template.media)
+    }))
+  );
 });
 
 app.post('/api/message-templates', async (req, res) => {
@@ -217,7 +433,7 @@ app.post('/api/message-templates', async (req, res) => {
     const { name, message, media } = req.body;
     const safeMedia = resolveSafeMedia(media);
     const template = await templateStore.createTemplate({ name, message, media: safeMedia });
-    res.json(template);
+    res.json({ ...template, media: publicMedia(template.media) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -365,7 +581,7 @@ app.get('/api/campaign-plans/:id/export.xlsx', (req, res) => {
 });
 
 app.get('/api/content/posts', requireAuth, (req, res) => {
-  res.json(contentStore.listPosts(req.user.id));
+  res.json(contentStore.listPosts(req.user.id).map(publicPost));
 });
 
 app.get('/api/content/posts/export.xlsx', requireAuth, (req, res) => {
@@ -386,12 +602,31 @@ app.get('/api/content/posts/export.xlsx', requireAuth, (req, res) => {
   res.send(buffer);
 });
 
+app.post('/api/content/posts/bulk', requireAuth, async (req, res) => {
+  try {
+    const platforms = [...new Set(Array.isArray(req.body.platforms) ? req.body.platforms : [])];
+    const safeMedia = resolveSafeMedia(req.body.media);
+    const posts = await contentStore.createPosts(
+      req.user.id,
+      platforms.map((platform) => ({
+        platform,
+        caption: req.body.caption,
+        scheduledAt: req.body.scheduledAt,
+        media: safeMedia
+      }))
+    );
+    res.json(posts.map(publicPost));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.post('/api/content/posts', requireAuth, async (req, res) => {
   try {
     const { platform, caption, scheduledAt, media } = req.body;
     const safeMedia = resolveSafeMedia(media);
     const post = await contentStore.createPost(req.user.id, { platform, caption, scheduledAt, media: safeMedia });
-    res.json(post);
+    res.json(publicPost(post));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -402,7 +637,7 @@ app.patch('/api/content/posts/:id', requireAuth, async (req, res) => {
     const patch = { ...req.body };
     if ('media' in patch) patch.media = resolveSafeMedia(patch.media);
     const post = await contentStore.updatePost(req.user.id, req.params.id, patch);
-    res.json(post);
+    res.json(publicPost(post));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -431,7 +666,7 @@ app.get('/api/meta/auth', requireAuth, (req, res) => {
   } catch (err) {
     // This link is a full page navigation, not a fetch() call — on failure, send the user
     // back into the app with a clear message instead of dumping a raw JSON error page.
-    res.redirect(`/content-scheduler?meta_error=${encodeURIComponent(err.message)}`);
+    res.redirect(frontendRedirect(`/content-scheduler?meta_error=${encodeURIComponent(err.message)}`));
   }
 });
 
@@ -440,13 +675,15 @@ app.get('/api/meta/callback', async (req, res) => {
   // `state` value already carries which user started this login (checked inside completeLogin).
   const { code, state, error, error_description: errorDescription } = req.query;
   if (error) {
-    return res.redirect(`/content-scheduler?meta_error=${encodeURIComponent(errorDescription || error)}`);
+    return res.redirect(
+      frontendRedirect(`/content-scheduler?meta_error=${encodeURIComponent(errorDescription || error)}`)
+    );
   }
   try {
     await metaAuth.completeLogin(code, state);
-    res.redirect('/content-scheduler?meta_connected=1');
+    res.redirect(frontendRedirect('/content-scheduler?meta_connected=1'));
   } catch (err) {
-    res.redirect(`/content-scheduler?meta_error=${encodeURIComponent(err.message)}`);
+    res.redirect(frontendRedirect(`/content-scheduler?meta_error=${encodeURIComponent(err.message)}`));
   }
 });
 
@@ -477,16 +714,13 @@ app.post('/api/content/posts/:id/publish', requireAuth, async (req, res) => {
       if (!post.media) {
         return res.status(400).json({ error: 'انستغرام يتطلب صورة / Instagram requires an image' });
       }
-      if (!config.META_PUBLIC_BASE_URL) {
-        return res.status(400).json({
-          error:
-            'يجب ضبط META_PUBLIC_BASE_URL برابط عام حتى يعمل النشر على انستغرام / META_PUBLIC_BASE_URL must be set to a public URL for Instagram publishing to work'
-        });
+      if (!String(post.media.mimetype || '').startsWith('image/')) {
+        return res.status(400).json({ error: 'انستغرام يتطلب ملف صورة صالح / Instagram requires a valid image file' });
       }
       result = await metaPublish.publishInstagramPost({
         igUserId: page.instagramBusinessAccountId,
         pageAccessToken: page.accessToken,
-        imageUrl: `${config.META_PUBLIC_BASE_URL}/uploads/${post.media.filename}`,
+        imageUrl: signedPublicMediaUrl(post.media),
         caption: post.caption
       });
     } else {
@@ -504,12 +738,42 @@ app.post('/api/content/posts/:id/publish', requireAuth, async (req, res) => {
 
 whatsapp.init();
 
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'مسار API غير موجود / API endpoint not found' });
+});
+
 // SPA fallback: any other GET request (e.g. /products, /store-analyzer) is a client-side
 // React Router route, so serve the landing bundle and let the router handle it.
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-app.listen(config.PORT, () => {
-  console.log(`WhatsApp Bulk Sender running at http://localhost:${config.PORT}`);
+const server = app.listen(config.PORT, () => {
+  console.log(`DMS running at http://localhost:${config.PORT}`);
 });
+
+let stopping = false;
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`DMS received ${signal}; shutting down`);
+
+  const closeServer = new Promise((resolve) => server.close(resolve));
+  const forceExit = setTimeout(() => {
+    console.error('DMS shutdown timed out');
+    process.exit(1);
+  }, 15_000);
+  forceExit.unref();
+
+  try {
+    await Promise.all([closeServer, whatsapp.shutdown(), sendEngine.shutdown()]);
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (err) {
+    console.error('DMS shutdown failed:', err);
+    process.exit(1);
+  }
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));

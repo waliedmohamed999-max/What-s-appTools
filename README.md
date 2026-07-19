@@ -1,4 +1,4 @@
-# WhatsApp Bulk Sender & Small Business Toolkit
+# DMS — Digital Marketing Suite
 
 A small suite of self-hosted tools for small businesses, built around a Node.js/Express backend
 with a React landing page. The flagship tool sends a single message (with an optional image/PDF
@@ -19,7 +19,7 @@ Built for personal / small-business use — small batches, human-like delays, no
 
 ## Requirements
 
-- Node.js 18+ (tested on Node 24)
+- Node.js 22.5+ (Node 24 recommended; the project uses the built-in `node:sqlite`)
 - A phone with WhatsApp installed, for the one-time QR scan
 - Windows/macOS/Linux — whatsapp-web.js drives a bundled headless Chromium via Puppeteer
 
@@ -36,6 +36,53 @@ landing page describing the tool. Click **"افتح الأداة / Open the Tool
 (`/app.html`), or open it directly.
 
 If port 3000 is already used by something else on your machine, set `PORT` in `.env` to a free port.
+
+On a fresh local installation, open `/register` and create the owner account first. DMS blocks
+additional registrations by default, then requires that account for WhatsApp, uploads, reports,
+campaign data, and content tools. Production deployments also require the `OWNER_SETUP_TOKEN`
+value during this first registration, preventing a stranger from claiming a newly deployed server.
+
+## Production deployment
+
+DMS cannot run the WhatsApp client as a Vercel Function. `whatsapp-web.js` needs a long-running
+Chromium process plus persistent `sessions`, `data`, and `uploads` storage. Use one of these
+supported layouts:
+
+### Recommended: run the complete app as a container
+
+The included `Dockerfile` serves both the React frontend and Express API from one origin:
+
+```bash
+docker build -t dms .
+docker volume create dms-storage
+docker run -d --name dms -p 3000:3000 \
+  -e OWNER_SETUP_TOKEN=replace-with-a-long-random-value \
+  -v dms-storage:/var/lib/dms dms
+```
+
+The included `render.yaml` is ready for a Render Blueprint with a persistent disk and generates
+`OWNER_SETUP_TOKEN` for you. Copy that generated value from the Render environment page when you
+create the first owner. A VPS or another container platform works too; keep the process running and
+mount `/var/lib/dms` persistently.
+
+Render persistent disks require an always-on paid service; the free/sleeping service is not suitable
+for Chromium, WhatsApp sessions, SQLite, or uploaded media. Review the provider's price before
+creating the service.
+
+### Optional: Vercel frontend + persistent backend
+
+1. Deploy the Docker backend first.
+2. On the backend, set `FRONTEND_ORIGINS` and `PUBLIC_APP_URL` to the exact Vercel URL.
+3. In Vercel, set the build variable `DMS_API_BASE_URL` to the backend HTTPS URL and redeploy.
+
+`vercel.json` now builds the frontend and rewrites all React routes. If `DMS_API_BASE_URL` is not
+set, the UI clearly reports that the backend is not connected instead of displaying an empty QR box.
+
+This split-origin mode relies on a cross-site session cookie, which browsers such as Safari on iPhone
+may block. For phones, prefer the complete container URL. The other reliable option is to leave
+`DMS_API_BASE_URL` empty and add Vercel external rewrites for `/api/:path*` and
+`/uploads/:path*` to the deployed backend URL, before the existing React rewrites; this keeps
+browser requests and cookies on the visible Vercel origin.
 
 ## First run — connecting WhatsApp
 
@@ -86,8 +133,8 @@ The optional `Name` column is used to personalize the message via a `{name}` pla
    optionally attach one image or PDF. A live preview is shown. Click **"Save as Template"** to save
    the current message (and attachment, if any) under a name for reuse later — saved templates show
    as a list above the message box; click a template's name to load it, or the `✕` to delete it.
-   Templates are stored in `data/message-templates.json` and shared locally (no login needed, same
-   as the rest of the WhatsApp tool).
+   Templates are stored in `data/message-templates.json` and are available to the signed-in DMS
+   owner.
 3. **Step 4** — click Send. Sending happens in the background:
    - A random delay (`MIN_DELAY_MS`–`MAX_DELAY_MS`, default 3–8s) between messages.
    - A longer pause (`BATCH_PAUSE_MS`, default 45s) after every `BATCH_SIZE` messages (default 20).
@@ -144,9 +191,18 @@ or small-business use, which is exactly what the disclaimer in the UI footer say
 | `MAX_DELAY_MS` | `8000` | Maximum delay between messages |
 | `BATCH_SIZE` | `20` | Messages sent before a longer pause |
 | `BATCH_PAUSE_MS` | `45000` | Pause duration between batches |
+| `STORAGE_DIR` | project directory | Persistent root for `data`, `sessions`, and `uploads` |
+| `FRONTEND_ORIGINS` | *(empty)* | Comma-separated frontend origins allowed to call a separate backend |
+| `PUBLIC_APP_URL` | first frontend origin | Browser URL used after Meta OAuth redirects |
+| `TRUST_PROXY` | `false` | Trust one reverse proxy for client IP/HTTPS detection; Render sets this automatically |
+| `OWNER_SETUP_TOKEN` | *(empty)* | Secret required for the first registration; mandatory in production |
+| `DMS_DISABLE_WHATSAPP` | `false` | Disable Chromium/WhatsApp only for tests or diagnostics |
 | `META_APP_ID` / `META_APP_SECRET` | *(empty)* | Your own Meta app credentials — see Social Content Scheduler below |
 | `META_REDIRECT_URI` | *(empty)* | Must match a Valid OAuth Redirect URI on your Meta app |
+| `META_GRAPH_VERSION` | `v25.0` | Meta Graph API version used for OAuth and publishing |
 | `META_PUBLIC_BASE_URL` | *(empty)* | Public HTTPS URL for this server; required for Instagram publishing only |
+| `MEDIA_SIGNING_SECRET` | `META_APP_SECRET` | HMAC secret for short-lived Instagram image links |
+| `DMS_API_BASE_URL` | *(same origin)* | Build-time backend URL when the Vercel frontend is separate |
 
 ## Store Analyzer
 
@@ -186,27 +242,31 @@ into the form, or exported as an Excel breakdown per plan.
 
 API: `GET/POST /api/campaign-plans`, `DELETE /api/campaign-plans/:id`, `GET /api/campaign-plans/:id/export.xlsx`.
 
-## Accounts & multi-user access
+## Owner account and access
 
-The WhatsApp tool, Store Analyzer, and Campaign Planner are still single-user/local (no login
-needed). The **Social Content Scheduler is different**: it requires an account, because its data —
-scheduled posts and connected Meta accounts — is private per person, stored in a real database
-(`data/app.db`, SQLite via Node's built-in `node:sqlite`), not one shared file.
+Every DMS tool now requires the signed-in owner account. This protects WhatsApp sessions, recipient
+lists, send history, uploaded media, store reports, campaign plans, and connected social accounts.
+The Content Scheduler's posts and Meta connection are additionally keyed by user ID in
+`data/app.db` (SQLite via Node's built-in `node:sqlite`).
 
 - **Register** at `/register` (email + password, 8 characters minimum) or **log in** at `/login`.
+- On production, paste the server's `OWNER_SETUP_TOKEN` during the first registration. Additional
+  registration is blocked by default.
 - Sessions are a plain `HttpOnly` cookie backed by a `sessions` table (30-day expiry) — no external
   auth provider, no third-party dependency.
 - Passwords are hashed with Node's built-in `crypto.scrypt` (salted, per-user) — never stored or
   logged in plain text.
-- Visiting `/content-scheduler` while logged out redirects to `/login` automatically.
+- Visiting any protected tool while logged out redirects to `/login`, then returns to the original
+  tool after successful login.
 - Every Content Scheduler API route requires a valid session and only ever reads/writes that
   session's own `user_id` — verified by creating two test accounts and confirming neither could see
   or delete the other's posts.
 
 API: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
 
-**This does not, by itself, let a stranger connect their own Facebook/Instagram account.** That's a
-separate, external requirement — see the note at the end of the Meta section below.
+DMS intentionally blocks all registrations after the owner is created because WhatsApp, lists,
+history, and campaign resources are single-owner. This also does not, by itself, let a stranger
+connect their own Facebook/Instagram account — that is a separate Meta requirement described below.
 
 ## Social Content Scheduler
 
@@ -276,6 +336,10 @@ servers, so Instagram publishing needs `META_PUBLIC_BASE_URL` set to a real publ
 Instagram publish attempts fail with a clear error telling you exactly that. **Facebook Page posts
 don't have this problem** — the image is uploaded directly, so Facebook publishing works from
 localhost with no public URL required.
+
+DMS does not expose the private uploads folder to Meta. It creates a ten-minute HMAC-signed image
+URL for each Instagram publish request; set `MEDIA_SIGNING_SECRET` explicitly or let it reuse
+`META_APP_SECRET`.
 
 API: `GET /api/meta/status`, `GET /api/meta/auth` (starts login), `GET /api/meta/callback` (OAuth
 redirect target), `POST /api/meta/disconnect`, `POST /api/content/posts/:id/publish`.

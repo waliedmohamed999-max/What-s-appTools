@@ -67,6 +67,23 @@ async function createPost(userId, { platform, caption, scheduledAt, media }) {
   return post;
 }
 
+async function createPosts(userId, inputs) {
+  if (!Array.isArray(inputs) || inputs.length === 0 || inputs.length > ALLOWED_PLATFORMS.length) {
+    throw new Error('اختر منصة واحدة على الأقل / Select at least one platform');
+  }
+
+  db.exec('BEGIN');
+  try {
+    const posts = [];
+    for (const input of inputs) posts.push(await createPost(userId, input));
+    db.exec('COMMIT');
+    return posts;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 async function updatePost(userId, id, patch) {
   const existing = getPost(userId, id);
   if (!existing) throw new Error('المنشور غير موجود / Post not found');
@@ -107,4 +124,4 @@ async function deletePost(userId, id) {
   if (result.changes === 0) throw new Error('المنشور غير موجود / Post not found');
 }
 
-module.exports = { listPosts, getPost, createPost, updatePost, deletePost, ALLOWED_PLATFORMS };
+module.exports = { listPosts, getPost, createPost, createPosts, updatePost, deletePost, ALLOWED_PLATFORMS };

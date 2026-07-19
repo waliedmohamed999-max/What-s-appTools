@@ -51,13 +51,40 @@ body {
 .app-header h1 {
   font-size: 1.3rem;
   margin: 0;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 0 8px;
 }
 .app-header .sub {
   display: block;
+  grid-column: 2 / -1;
   font-size: 0.85rem;
   color: var(--text-muted);
   font-weight: normal;
 }
+.home-link {
+  grid-row: 1 / span 2;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 1.25rem;
+}
+.home-link:hover { color: var(--text); }
+.dms-wordmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  direction: ltr;
+  min-width: 52px;
+  min-height: 30px;
+  padding: 3px 9px;
+  border-radius: 9px;
+  background: #111827;
+  color: #fff;
+  font-size: 0.88rem;
+  letter-spacing: 0.08em;
+}
+.tool-title { white-space: nowrap; }
 
 .status-badge {
   display: flex;
@@ -79,6 +106,7 @@ body {
 .dot.connected { background: var(--accent); }
 .dot.qr_pending { background: var(--warn); }
 .dot.disconnected { background: var(--danger); }
+.dot.error, .dot.disabled { background: var(--danger); }
 
 .steps {
   display: flex;
@@ -156,6 +184,18 @@ textarea { resize: vertical; min-height: 110px; }
   font-size: 0.82rem;
   color: var(--text-muted);
   margin-top: 10px;
+}
+.connection-error {
+  text-align: center;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 14px;
+}
+.connection-error p {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
 }
 
 .connected-wrap { text-align: center; }
@@ -436,14 +476,6 @@ thead th {
 
   .template-item, .history-item { padding: 12px; }
 }
-
-.home-link {
-  color: var(--text-muted);
-  text-decoration: none;
-  margin-left: 8px;
-  font-weight: normal;
-}
-.home-link:hover { color: var(--text); }
 
 /* ---------- Landing page ---------- */
 

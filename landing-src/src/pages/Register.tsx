@@ -1,24 +1,41 @@
-import { useState, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import PageShell from '../components/PageShell';
+import { apiFetch, safeNextPath } from '../lib/api';
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [ownerSetupToken, setOwnerSetupToken] = useState('');
+  const [ownerSetupTokenRequired, setOwnerSetupTokenRequired] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    apiFetch<{ ownerSetupTokenRequired?: boolean }>('/api/config')
+      .then((config) => setOwnerSetupTokenRequired(Boolean(config.ownerSetupTokenRequired)))
+      .catch(() => {
+        // The submit action will show the backend's detailed connectivity error.
+      });
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setSubmitting(true);
     try {
-      await register(email, password);
-      navigate('/content-scheduler');
+      await register(email, password, ownerSetupToken);
+      if (/\.html(?:[?#]|$)/i.test(nextPath)) {
+        window.location.assign(nextPath);
+      } else {
+        navigate(nextPath);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ / Something went wrong');
     } finally {
@@ -53,6 +70,22 @@ export default function Register() {
             className="mt-1 w-full rounded-lg px-3 py-3 border border-gray-200 text-[16px] focus:outline-none focus:border-blue-400"
           />
         </label>
+        {ownerSetupTokenRequired && (
+          <label className="block text-[12px] text-gray-500">
+            رمز إعداد المالك / Owner setup token
+            <input
+              type="password"
+              required
+              autoComplete="off"
+              value={ownerSetupToken}
+              onChange={(e) => setOwnerSetupToken(e.target.value)}
+              className="mt-1 w-full rounded-lg px-3 py-3 border border-gray-200 text-[16px] focus:outline-none focus:border-blue-400"
+            />
+            <span className="block mt-1 text-[11px] text-gray-400">
+              انسخه من متغير OWNER_SETUP_TOKEN في إعدادات الخادم.
+            </span>
+          </label>
+        )}
 
         {error && <p className="text-[12px] text-red-600">{error}</p>}
 
@@ -68,7 +101,7 @@ export default function Register() {
 
       <p className="text-[12px] text-gray-400 mt-4">
         عندك حساب بالفعل؟{' '}
-        <Link to="/login" className="text-blue-500 hover:text-blue-600">
+        <Link to={`/login?next=${encodeURIComponent(nextPath)}`} className="text-blue-500 hover:text-blue-600">
           سجّل دخول / Login
         </Link>
       </p>

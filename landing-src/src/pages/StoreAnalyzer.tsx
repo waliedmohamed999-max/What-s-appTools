@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import PageShell from '../components/PageShell';
 import BackLink from '../components/BackLink';
+import { apiFetch, apiUrl } from '../lib/api';
 
 type Issue = { severity: 'high' | 'medium' | 'low'; message: string };
 
@@ -90,8 +91,7 @@ export default function StoreAnalyzer() {
 
   async function loadHistory() {
     try {
-      const res = await fetch('/api/store-analysis/history');
-      setHistory(await res.json());
+      setHistory(await apiFetch<HistoryEntry[]>('/api/store-analysis/history'));
     } catch (err) {
       /* history is a nice-to-have, ignore failures */
     }
@@ -107,20 +107,15 @@ export default function StoreAnalyzer() {
     setError('');
     setResult(null);
     try {
-      const res = await fetch('/api/store-analysis/analyze', {
+      const data = await apiFetch<AnalysisResult>('/api/store-analysis/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'حدث خطأ أثناء التحليل / Something went wrong while analyzing');
-        return;
-      }
       setResult(data);
       loadHistory();
     } catch (err) {
-      setError('تعذر الاتصال بالخادم / Cannot reach the server');
+      setError(err instanceof Error ? err.message : 'تعذر الاتصال بالخادم / Cannot reach the server');
     } finally {
       setLoading(false);
     }
@@ -296,7 +291,7 @@ export default function StoreAnalyzer() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[14px] font-medium text-gray-900">السجل / History</h3>
             <a
-              href="/api/store-analysis/history.xlsx"
+              href={apiUrl('/api/store-analysis/history.xlsx')}
               className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-500 hover:text-blue-600 transition-colors"
             >
               <Download size={12} />

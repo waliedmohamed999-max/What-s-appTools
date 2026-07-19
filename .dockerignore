@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+.wwebjs_cache
+node_modules
+landing-src/node_modules
+landing-src/dist
+data/*
+!data/.gitkeep
+sessions
+storage
+uploads/*
+!uploads/.gitkeep
+.env
+*.log

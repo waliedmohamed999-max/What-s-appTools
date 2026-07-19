@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import PageShell from '../components/PageShell';
+import { safeNextPath } from '../lib/api';
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get('next'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,7 +21,11 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate('/content-scheduler');
+      if (/\.html(?:[?#]|$)/i.test(nextPath)) {
+        window.location.assign(nextPath);
+      } else {
+        navigate(nextPath);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ / Something went wrong');
     } finally {
@@ -67,7 +74,7 @@ export default function Login() {
 
       <p className="text-[12px] text-gray-400 mt-4">
         ما عندكش حساب؟{' '}
-        <Link to="/register" className="text-blue-500 hover:text-blue-600">
+        <Link to={`/register?next=${encodeURIComponent(nextPath)}`} className="text-blue-500 hover:text-blue-600">
           أنشئ حساب / Register
         </Link>
       </p>

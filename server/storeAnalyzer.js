@@ -1,17 +1,119 @@
 const cheerio = require('cheerio');
+const dns = require('node:dns').promises;
+const net = require('node:net');
+const { Agent, fetch: undiciFetch } = require('undici');
 
 const FETCH_TIMEOUT_MS = 8000;
 const ROBOTS_TIMEOUT_MS = 4000;
 const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5MB
+const MAX_REDIRECTS = 5;
+
+const blockedAddresses = new net.BlockList();
+[
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.0.2.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4]
+].forEach(([address, prefix]) => blockedAddresses.addSubnet(address, prefix, 'ipv4'));
+[
+  ['::', 128],
+  ['::1', 128],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['ff00::', 8],
+  ['2001:db8::', 32]
+].forEach(([address, prefix]) => blockedAddresses.addSubnet(address, prefix, 'ipv6'));
 
 function isPrivateHost(hostname) {
-  const h = hostname.toLowerCase();
-  if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '::1') return true;
-  if (/^10\./.test(h)) return true;
-  if (/^192\.168\./.test(h)) return true;
-  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
-  if (/^169\.254\./.test(h)) return true;
-  return false;
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local')) return true;
+  const normalized = h.startsWith('::ffff:') ? h.slice(7) : h;
+  const family = net.isIP(normalized);
+  return family > 0 ? blockedAddresses.check(normalized, family === 6 ? 'ipv6' : 'ipv4') : false;
+}
+
+async function assertPublicUrl(url) {
+  if (isPrivateHost(url.hostname)) {
+    throw new Error('لا يمكن تحليل عناوين داخلية / Internal addresses are not allowed');
+  }
+  const addresses = await dns.lookup(url.hostname, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some(({ address }) => isPrivateHost(address))) {
+    throw new Error('لا يمكن تحليل عنوان يشير إلى شبكة داخلية / URLs resolving to internal networks are not allowed');
+  }
+  return addresses;
+}
+
+function createPinnedDispatcher(address) {
+  return new Agent({
+    connect: {
+      autoSelectFamily: false,
+      lookup(hostname, options, callback) {
+        if (options?.all) return callback(null, [address]);
+        return callback(null, address.address, address.family);
+      }
+    }
+  });
+}
+
+async function safeFetch(initialUrl, options = {}) {
+  let current = new URL(initialUrl);
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+    const addresses = await assertPublicUrl(current);
+    const address = addresses.find((candidate) => candidate.family === 4) || addresses[0];
+    const dispatcher = createPinnedDispatcher(address);
+    let res;
+    try {
+      res = await undiciFetch(current, { ...options, dispatcher, redirect: 'manual' });
+    } catch (err) {
+      await dispatcher.close().catch(() => {});
+      throw err;
+    }
+    if (![301, 302, 303, 307, 308].includes(res.status)) {
+      return { res, finalUrl: current, dispatcher };
+    }
+    const location = res.headers.get('location');
+    if (!location) return { res, finalUrl: current, dispatcher };
+    if (redirects === MAX_REDIRECTS) {
+      await res.body?.cancel();
+      await dispatcher.close();
+      throw new Error('عدد تحويلات الرابط كبير جداً / Too many redirects');
+    }
+    await res.body?.cancel();
+    await dispatcher.close();
+    current = new URL(location, current);
+    if (!['http:', 'https:'].includes(current.protocol)) {
+      throw new Error('تحويل الرابط إلى بروتوكول غير مسموح / Redirected to an unsupported protocol');
+    }
+  }
+  throw new Error('تعذر متابعة تحويلات الرابط / Could not follow redirects');
+}
+
+async function readLimitedText(res) {
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_CONTENT_LENGTH) {
+      await reader.cancel();
+      throw new Error('الصفحة كبيرة جداً للتحليل / Page is too large to analyze');
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 function normalizeUrl(input) {
@@ -38,29 +140,30 @@ async function fetchHtml(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   const start = Date.now();
+  let dispatcher = null;
 
   try {
-    const res = await fetch(url.toString(), {
+    const result = await safeFetch(url, {
       signal: controller.signal,
-      redirect: 'follow',
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StoreAnalyzerBot/1.0)' }
     });
+    const { res, finalUrl } = result;
+    dispatcher = result.dispatcher;
     const responseTimeMs = Date.now() - start;
 
     const contentLength = parseInt(res.headers.get('content-length') || '0', 10);
     if (contentLength && contentLength > MAX_CONTENT_LENGTH) {
+      await res.body?.cancel();
       throw new Error('الصفحة كبيرة جداً للتحليل / Page is too large to analyze');
     }
     if (!res.ok) {
+      await res.body?.cancel();
       throw new Error(`تعذر الوصول للموقع (HTTP ${res.status}) / Could not reach the site (HTTP ${res.status})`);
     }
 
-    const html = await res.text();
-    if (Buffer.byteLength(html, 'utf8') > MAX_CONTENT_LENGTH) {
-      throw new Error('الصفحة كبيرة جداً للتحليل / Page is too large to analyze');
-    }
+    const html = await readLimitedText(res);
 
-    return { html, responseTimeMs, finalUrl: res.url || url.toString() };
+    return { html, responseTimeMs, finalUrl: finalUrl.toString() };
   } catch (err) {
     if (err.name === 'AbortError') {
       throw new Error('انتهت مهلة الاتصال بالموقع / Connection to the site timed out');
@@ -68,19 +171,25 @@ async function fetchHtml(url) {
     throw err;
   } finally {
     clearTimeout(timeout);
+    if (dispatcher) await dispatcher.close().catch(() => {});
   }
 }
 
 async function checkRobotsTxt(origin) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ROBOTS_TIMEOUT_MS);
+  let dispatcher = null;
   try {
-    const res = await fetch(`${origin}/robots.txt`, { signal: controller.signal, redirect: 'follow' });
+    const result = await safeFetch(`${origin}/robots.txt`, { signal: controller.signal });
+    const { res } = result;
+    dispatcher = result.dispatcher;
+    await res.body?.cancel();
     return res.ok;
   } catch (err) {
     return false;
   } finally {
     clearTimeout(timeout);
+    if (dispatcher) await dispatcher.close().catch(() => {});
   }
 }
 
@@ -362,14 +471,15 @@ function scoreAnalysis(details) {
 async function analyzeUrl(input) {
   const url = normalizeUrl(input);
   const { html, responseTimeMs, finalUrl } = await fetchHtml(url);
-  const details = analyzeHtml(html, url);
-  details.hasRobotsTxt = await checkRobotsTxt(url.origin);
+  const analyzedUrl = new URL(finalUrl);
+  const details = analyzeHtml(html, analyzedUrl);
+  details.hasRobotsTxt = await checkRobotsTxt(analyzedUrl.origin);
 
   const { score, categoryScores, issues } = scoreAnalysis(details);
 
   return {
     url: finalUrl,
-    hostname: url.hostname,
+    hostname: analyzedUrl.hostname,
     fetchedAt: new Date().toISOString(),
     responseTimeMs,
     score,

@@ -3,14 +3,20 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WhatsApp Bulk Sender — إرسال رسائل واتساب جماعي</title>
+<title>DMS — إرسال رسائل واتساب</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app">
     <header class="app-header">
-      <h1><a href="index.html" class="home-link">←</a> WhatsApp Bulk Sender <span class="sub">إرسال رسائل واتساب جماعي</span></h1>
-      <div class="status-badge" id="statusBadge">
+      <h1>
+        <a href="/" class="home-link" aria-label="العودة إلى DMS / Back to DMS">←</a>
+        <span class="dms-wordmark">DMS</span>
+        <span class="tool-title">WhatsApp Sender</span>
+        <span class="sub">إرسال رسائل واتساب</span>
+      </h1>
+      <div class="status-badge" id="statusBadge" role="status" aria-live="polite">
         <span class="dot" id="statusDot"></span>
         <span id="statusText">جارٍ التحقق... / Checking...</span>
       </div>
@@ -22,7 +28,7 @@
       <section class="card" id="step1">
         <h2><span class="step-num">1</span> الاتصال <span class="en">Connection</span></h2>
         <div class="step-body" id="connectionBody">
-          <div id="qrWrap" class="qr-wrap">
+          <div id="qrWrap" class="qr-wrap hidden">
             <img id="qrImage" alt="QR Code" />
             <p class="hint">افتح واتساب على هاتفك ثم اذهب إلى: الأجهزة المرتبطة ← ربط جهاز، وامسح الرمز.<br />
             <span class="en">Open WhatsApp on your phone → Linked devices → Link a device, then scan.</span></p>
@@ -31,8 +37,12 @@
             <p class="ok-text">✔ متصل برقم / Connected as: <strong id="connectedNumber"></strong></p>
             <button id="logoutBtn" class="btn btn-secondary">تسجيل الخروج / Logout</button>
           </div>
-          <div id="waitingWrap" class="hidden">
+          <div id="waitingWrap">
             <p class="hint">جارٍ تجهيز الاتصال... / Preparing connection...</p>
+          </div>
+          <div id="connectionErrorWrap" class="connection-error hidden" role="alert">
+            <p id="connectionErrorText">تعذر الاتصال بخادم DMS / Cannot reach the DMS server</p>
+            <button id="retryConnectionBtn" type="button" class="btn btn-secondary">إعادة المحاولة / Retry</button>
           </div>
         </div>
       </section>
@@ -157,6 +167,8 @@
     </footer>
   </div>
 
+  <script src="/runtime-config.js"></script>
+  <script src="/api-client.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
