@@ -12,6 +12,7 @@ const whatsapp = require('./whatsapp');
 const excel = require('./excel');
 const sendEngine = require('./sendEngine');
 const storeAnalyzer = require('./storeAnalyzer');
+const { fetchPageSpeed } = require('./pageSpeed');
 const storeAnalysisHistory = require('./storeAnalysisHistory');
 const contentStore = require('./contentStore');
 const campaignPlanStore = require('./campaignPlanStore');
@@ -461,7 +462,12 @@ app.get('/api/send/results.xlsx', (req, res) => {
   }
 });
 
-app.post('/api/store-analysis/analyze', async (req, res) => {
+// Rate-limited (not just auth-gated — this site has no login) because a configured
+// GOOGLE_PAGESPEED_API_KEY has a metered daily quota that an anonymous visitor could
+// otherwise burn through.
+const analysisRateLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+
+app.post('/api/store-analysis/analyze', analysisRateLimit, async (req, res) => {
   try {
     const result = await storeAnalyzer.analyzeUrl(req.body.url);
 
@@ -479,6 +485,23 @@ app.post('/api/store-analysis/analyze', async (req, res) => {
       previousScore: previous ? previous.score : null,
       scoreDelta: previous ? result.score - previous.score : null
     });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// On-demand PageSpeed re-fetch for switching between Mobile/Desktop after the initial
+// /analyze call — deliberately doesn't repeat the heuristic scan or touch history, since
+// nothing about those changes with strategy.
+app.post('/api/store-analysis/pagespeed', analysisRateLimit, async (req, res) => {
+  try {
+    const strategy = req.body.strategy === 'desktop' ? 'desktop' : 'mobile';
+    const url = storeAnalyzer.normalizeUrl(req.body.url);
+    const pageSpeed = await fetchPageSpeed(url.toString(), strategy);
+    if (!pageSpeed) {
+      return res.status(503).json({ error: 'Google PageSpeed API غير مفعّل / Google PageSpeed API is not enabled' });
+    }
+    res.json(pageSpeed);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

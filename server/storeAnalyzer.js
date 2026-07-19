@@ -503,4 +503,4 @@ async function analyzeUrl(input) {
   };
 }
 
-module.exports = { analyzeUrl };
+module.exports = { analyzeUrl, normalizeUrl };

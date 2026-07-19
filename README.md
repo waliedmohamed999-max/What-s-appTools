@@ -222,17 +222,24 @@ server being used to probe your own network.
 **Real Google PageSpeed Insights scoring (optional):** set `GOOGLE_PAGESPEED_API_KEY` in `.env` and
 every analysis additionally calls Google's own PageSpeed Insights API (`server/pageSpeed.js`) —
 the same Lighthouse run and Core Web Vitals thresholds as pagespeed.web.dev, not an approximation:
-mobile-strategy Performance/SEO/Accessibility/Best Practices scores (0–100) plus LCP, CLS, TBT, FCP,
-Speed Index, and TTFB, each rated good/needs-improvement/poor using Google's published thresholds,
-and real Chrome-user field data (CrUX) when Google has enough traffic for that origin to report it.
-Get a free key at console.cloud.google.com (enable "PageSpeed Insights API" → Credentials → Create
-API Key; free tier is 25,000 requests/day). Leave it unset and Store Analyzer works exactly as
-before — the PSI card just doesn't render. A PSI call takes several seconds and runs independently
-of the heuristic scan above, so a slow or failed PSI request never blocks or breaks the rest of
-the report.
+Performance/SEO/Accessibility/Best Practices scores (0–100, mobile by default with a Desktop toggle
+that fetches on demand via `POST /api/store-analysis/pagespeed`), LCP/CLS/TBT/FCP/Speed
+Index/TTFB each rated good/needs-improvement/poor against Google's published thresholds, a ranked
+**Opportunities** list (the specific fixes with the biggest estimated time savings — unused
+JS/CSS, unminified assets, next-gen image formats, etc.), a pass/fail **Core Web Vitals
+Assessment** banner when Google has real Chrome-user (CrUX) field data for that origin, and the
+field data itself when available. Both PSI routes are rate-limited (20 requests / 15 min / IP) —
+this site has no login, and a configured key has a metered daily quota (free tier: 25,000
+requests/day) an anonymous visitor could otherwise burn through. Get a free key at
+console.cloud.google.com (enable "PageSpeed Insights API" → Credentials → Create API Key). Leave
+it unset and Store Analyzer works exactly as before — the PSI card just doesn't render. A PSI
+call routinely takes 20–45s (mobile runs a simulated throttled connection, so it's slower than
+desktop) and runs independently of the heuristic scan above, so a slow or failed PSI request
+never blocks or breaks the rest of the report.
 
-API: `POST /api/store-analysis/analyze` with `{ "url": "..." }`, `GET /api/store-analysis/history`,
-`GET /api/store-analysis/history.xlsx`.
+API: `POST /api/store-analysis/analyze` with `{ "url": "..." }`, `POST /api/store-analysis/pagespeed`
+with `{ "url": "...", "strategy": "mobile" | "desktop" }` (PSI-only re-fetch for the Desktop toggle),
+`GET /api/store-analysis/history`, `GET /api/store-analysis/history.xlsx`.
 
 ## Campaign Budget Planner
 

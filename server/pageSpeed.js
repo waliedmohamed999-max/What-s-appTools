@@ -1,7 +1,10 @@
 const config = require('./config');
 
 const PSI_ENDPOINT = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
-const PSI_TIMEOUT_MS = 28000;
+// Mobile strategy runs Lighthouse on a simulated throttled connection, so it routinely
+// takes 20-45s+ (slower than desktop) — generous on purpose to avoid aborting an
+// otherwise-successful run.
+const PSI_TIMEOUT_MS = 55000;
 
 // Google's official Core Web Vitals / Lighthouse lab-metric thresholds (ms unless noted).
 // https://web.dev/articles/defining-core-web-vitals-thresholds
@@ -11,7 +14,34 @@ const THRESHOLDS = {
   tbt: { good: 200, poor: 600 },
   fcp: { good: 1800, poor: 3000 },
   speedIndex: { good: 3400, poor: 5800 },
-  ttfb: { good: 800, poor: 1800 }
+  ttfb: { good: 800, poor: 1800 },
+  inp: { good: 200, poor: 500 }
+};
+
+// The three metrics Google itself uses for the pass/fail "Core Web Vitals Assessment"
+// banner on a real PSI report — field data only, never the lab run.
+const CORE_WEB_VITALS = ['lcp', 'cls', 'inp'];
+
+// Real PSI report opportunity audits, in Google's own display order, each with a
+// short bilingual label — chosen instead of using Lighthouse's raw English audit
+// titles directly, so the report matches the rest of DMS's Arabic/English style.
+const OPPORTUNITY_LABELS = {
+  'render-blocking-resources': { ar: 'موارد تمنع العرض الأول', en: 'Eliminate render-blocking resources' },
+  'unused-css-rules': { ar: 'CSS غير مستخدم', en: 'Reduce unused CSS' },
+  'unused-javascript': { ar: 'JavaScript غير مستخدم', en: 'Reduce unused JavaScript' },
+  'modern-image-formats': { ar: 'صيغ صور أحدث (WebP/AVIF)', en: 'Serve images in next-gen formats' },
+  'offscreen-images': { ar: 'صور خارج الشاشة', en: 'Defer offscreen images' },
+  'unminified-css': { ar: 'ضغط CSS', en: 'Minify CSS' },
+  'unminified-javascript': { ar: 'ضغط JavaScript', en: 'Minify JavaScript' },
+  'efficiently-encode-images': { ar: 'ترميز الصور بكفاءة', en: 'Efficiently encode images' },
+  'uses-text-compression': { ar: 'ضغط النصوص (gzip/brotli)', en: 'Enable text compression' },
+  'uses-responsive-images': { ar: 'صور متجاوبة مع حجم الشاشة', en: 'Properly size images' },
+  'uses-optimized-images': { ar: 'صور محسّنة', en: 'Efficiently encode images' },
+  'font-display': { ar: 'تحميل الخطوط بدون حجب العرض', en: 'Ensure text remains visible during webfont load' },
+  'duplicated-javascript': { ar: 'JavaScript مكرر في الحزمة', en: 'Remove duplicate modules in JavaScript bundles' },
+  'legacy-javascript': { ar: 'كود JavaScript قديم غير ضروري', en: 'Avoid serving legacy JavaScript to modern browsers' },
+  'uses-rel-preconnect': { ar: 'preconnect للنطاقات المطلوبة', en: 'Preconnect to required origins' },
+  'uses-rel-preload': { ar: 'preload للموارد الأساسية', en: 'Preload key requests' }
 };
 
 function rate(metricKey, value) {
@@ -60,10 +90,39 @@ function extractFieldData(loadingExperience) {
   return Object.keys(field).length ? field : null;
 }
 
-async function fetchPageSpeed(url) {
+// Google only ever assesses Core Web Vitals from field data (never the lab run) — a
+// URL "passes" only if every field metric it has enough traffic to report is FAST.
+function assessCoreWebVitals(fieldData) {
+  if (!fieldData) return null;
+  const reported = CORE_WEB_VITALS.filter((key) => fieldData[key]);
+  if (reported.length === 0) return null;
+  return reported.every((key) => fieldData[key].category === 'fast') ? 'pass' : 'fail';
+}
+
+// The "Opportunities" list from a real PSI report: audits with a measurable potential
+// time saving, sorted by impact — the single most actionable part of the report and
+// the piece the previous heuristic-only analyzer had no equivalent for at all.
+function extractOpportunities(audits) {
+  const opportunities = [];
+  for (const [id, audit] of Object.entries(audits || {})) {
+    if (audit?.details?.type !== 'opportunity') continue;
+    const savingsMs = audit.details.overallSavingsMs;
+    if (!savingsMs || savingsMs < 100) continue;
+    const label = OPPORTUNITY_LABELS[id];
+    opportunities.push({
+      id,
+      title: label ? `${label.ar} / ${label.en}` : audit.title,
+      savingsMs: Math.round(savingsMs),
+      displayValue: audit.displayValue || ''
+    });
+  }
+  return opportunities.sort((a, b) => b.savingsMs - a.savingsMs).slice(0, 6);
+}
+
+async function fetchPageSpeed(url, strategy = 'mobile') {
   if (!config.GOOGLE_PAGESPEED_API_KEY) return null;
 
-  const params = new URLSearchParams({ url, key: config.GOOGLE_PAGESPEED_API_KEY, strategy: 'mobile' });
+  const params = new URLSearchParams({ url, key: config.GOOGLE_PAGESPEED_API_KEY, strategy });
   for (const category of ['performance', 'seo', 'accessibility', 'best-practices']) {
     params.append('category', category);
   }
@@ -81,9 +140,10 @@ async function fetchPageSpeed(url) {
 
     const categories = body?.lighthouseResult?.categories || {};
     const audits = body?.lighthouseResult?.audits || {};
+    const fieldData = extractFieldData(body?.loadingExperience);
 
     return {
-      strategy: 'mobile',
+      strategy,
       scores: {
         performance: pct(categories.performance?.score),
         seo: pct(categories.seo?.score),
@@ -98,7 +158,9 @@ async function fetchPageSpeed(url) {
         speedIndex: extractMetric(audits, 'speed-index', 'speedIndex'),
         ttfb: extractMetric(audits, 'server-response-time', 'ttfb')
       },
-      fieldData: extractFieldData(body?.loadingExperience),
+      opportunities: extractOpportunities(audits),
+      fieldData,
+      coreWebVitalsAssessment: assessCoreWebVitals(fieldData),
       fetchedAt: new Date().toISOString()
     };
   } finally {

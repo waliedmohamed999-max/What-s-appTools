@@ -9,7 +9,8 @@ import {
   Share2,
   TrendingUp,
   TrendingDown,
-  Download
+  Download,
+  CheckCircle2
 } from 'lucide-react';
 import PageShell from '../components/PageShell';
 import BackLink from '../components/BackLink';
@@ -21,11 +22,15 @@ type CategoryScores = { seo: number; technical: number; trust: number; social: n
 
 type Metric = { value: number | null; displayValue: string; rating: 'good' | 'needs-improvement' | 'poor' | null };
 
+type Opportunity = { id: string; title: string; savingsMs: number; displayValue: string };
+
 type PageSpeedResult = {
-  strategy: string;
+  strategy: 'mobile' | 'desktop';
   scores: { performance: number | null; seo: number | null; accessibility: number | null; bestPractices: number | null };
   metrics: { lcp: Metric | null; cls: Metric | null; tbt: Metric | null; fcp: Metric | null; speedIndex: Metric | null; ttfb: Metric | null };
+  opportunities: Opportunity[];
   fieldData: Record<string, { value: number; category: string }> | null;
+  coreWebVitalsAssessment: 'pass' | 'fail' | null;
   fetchedAt: string;
 };
 
@@ -111,18 +116,85 @@ function ratingColor(rating: Metric['rating']) {
   return { text: 'text-[var(--text-muted)]', dot: 'bg-[var(--text-muted)]' };
 }
 
-function PageSpeedCard({ pageSpeed }: { pageSpeed: PageSpeedResult }) {
+function formatSavings(ms: number) {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`;
+}
+
+function PageSpeedCard({ pageSpeed: initial, url }: { pageSpeed: PageSpeedResult; url: string }) {
+  const [pageSpeed, setPageSpeed] = useState(initial);
+  const [loadingStrategy, setLoadingStrategy] = useState<'mobile' | 'desktop' | null>(null);
+  const [cache, setCache] = useState<Partial<Record<'mobile' | 'desktop', PageSpeedResult>>>({
+    [initial.strategy]: initial
+  });
+
+  async function switchStrategy(strategy: 'mobile' | 'desktop') {
+    if (strategy === pageSpeed.strategy) return;
+    const cached = cache[strategy];
+    if (cached) {
+      setPageSpeed(cached);
+      return;
+    }
+    setLoadingStrategy(strategy);
+    try {
+      const data = await apiFetch<PageSpeedResult>('/api/store-analysis/pagespeed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, strategy })
+      });
+      setPageSpeed(data);
+      setCache((c) => ({ ...c, [strategy]: data }));
+    } catch {
+      /* keep showing the previous strategy's data on failure */
+    } finally {
+      setLoadingStrategy(null);
+    }
+  }
+
   return (
     <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-[14px] font-medium text-[var(--text-primary)]">
           سرعة الموقع (Google PageSpeed Insights)
         </h3>
-        <span className="text-[10.5px] text-[var(--text-muted)]">Mobile</span>
+        <div className="flex items-center rounded-full bg-[var(--chip)] p-0.5 text-[11px] font-medium">
+          {(['mobile', 'desktop'] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => switchStrategy(s)}
+              disabled={loadingStrategy !== null}
+              className={`flex items-center gap-1 rounded-full px-3 py-1.5 transition-colors duration-200 ${
+                pageSpeed.strategy === s ? 'bg-[var(--surface)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)]'
+              }`}
+            >
+              {loadingStrategy === s && <Loader2 size={11} className="animate-spin" />}
+              {s === 'mobile' ? 'Mobile' : 'Desktop'}
+            </button>
+          ))}
+        </div>
       </div>
       <p className="text-[11.5px] text-[var(--text-muted)] mb-5">
         نفس القياس والمنهجية اللي بتشوفها في pagespeed.web.dev
       </p>
+
+      {pageSpeed.coreWebVitalsAssessment && (
+        <div
+          className={`flex items-center gap-2 text-[12px] font-medium rounded-xl px-3.5 py-2.5 mb-5 ${
+            pageSpeed.coreWebVitalsAssessment === 'pass'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-red-50 text-red-700 border border-red-200'
+          }`}
+        >
+          {pageSpeed.coreWebVitalsAssessment === 'pass' ? (
+            <CheckCircle2 size={14} />
+          ) : (
+            <AlertCircle size={14} />
+          )}
+          {pageSpeed.coreWebVitalsAssessment === 'pass'
+            ? 'اجتاز تقييم Core Web Vitals — بناءً على بيانات مستخدمين حقيقيين / Passed the Core Web Vitals assessment'
+            : 'لم يجتز تقييم Core Web Vitals — بناءً على بيانات مستخدمين حقيقيين / Failed the Core Web Vitals assessment'}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {SCORE_LABELS.map(({ key, label }) => {
@@ -143,7 +215,7 @@ function PageSpeedCard({ pageSpeed }: { pageSpeed: PageSpeedResult }) {
         })}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         {METRIC_LABELS.map(({ key, label }) => {
           const metric = pageSpeed.metrics[key];
           if (!metric || metric.value === null) return null;
@@ -162,6 +234,27 @@ function PageSpeedCard({ pageSpeed }: { pageSpeed: PageSpeedResult }) {
           );
         })}
       </div>
+
+      {pageSpeed.opportunities.length > 0 && (
+        <div>
+          <h4 className="text-[12.5px] font-medium text-[var(--text-primary)] mb-3">
+            فرص التحسين / Opportunities
+          </h4>
+          <ul className="space-y-2">
+            {pageSpeed.opportunities.map((op) => (
+              <li
+                key={op.id}
+                className="flex items-center justify-between gap-3 bg-[var(--bg)] border border-[var(--line)] rounded-xl px-3.5 py-2.5"
+              >
+                <span className="text-[11.5px] text-[var(--text-secondary)]">{op.title}</span>
+                <span className="text-[11.5px] font-medium text-[var(--primary)] shrink-0">
+                  -{formatSavings(op.savingsMs)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {pageSpeed.fieldData && (
         <p className="text-[11px] text-[var(--text-muted)] mt-4">
@@ -283,7 +376,7 @@ export default function StoreAnalyzer() {
             </div>
           </div>
 
-          {result.pageSpeed && <PageSpeedCard pageSpeed={result.pageSpeed} />}
+          {result.pageSpeed && <PageSpeedCard key={result.url} pageSpeed={result.pageSpeed} url={result.url} />}
           {!result.pageSpeed && result.pageSpeedError && (
             <div className="bg-amber-50 border border-amber-200 text-amber-700 text-[12.5px] rounded-xl px-4 py-3">
               قياس سرعة Google غير متاح مؤقتًا لهذا الرابط، باقي نتائج التحليل أدناه سليمة.
