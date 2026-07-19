@@ -64,9 +64,11 @@ export default function ToolsSection() {
   const arrow = lang === 'ar' ? '←' : '→';
 
   return (
-    <section className="max-w-5xl mx-auto px-5 sm:px-10 py-16 sm:py-20">
-      <h2 className="text-[1.4rem] sm:text-[1.6rem] font-medium text-gray-900 tracking-tight mb-2">{t.title}</h2>
-      <p className="text-[13px] text-gray-400 mb-8 sm:mb-10">{t.subtitle}</p>
+    <section id="tools" className="max-w-5xl mx-auto px-5 sm:px-10 py-16 sm:py-20 scroll-mt-16">
+      <h2 className="text-[1.4rem] sm:text-[1.6rem] font-bold text-[var(--text-primary)] tracking-tight mb-2">
+        {t.title}
+      </h2>
+      <p className="text-[13px] text-[var(--text-secondary)] mb-8 sm:mb-10">{t.subtitle}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
         {TOOLS.map((tool, index) => {
@@ -74,22 +76,24 @@ export default function ToolsSection() {
           return (
             <div
               key={tool.href}
-              className="relative bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 flex flex-col hover:border-blue-300 hover:shadow-sm transition-all duration-200"
+              className="relative bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-5 sm:p-6 flex flex-col hover:border-[rgba(var(--primary-rgb),0.4)] hover:shadow-[0_12px_32px_-16px_rgba(var(--primary-rgb),0.35)] transition-all duration-200"
             >
-              <span className="absolute top-5 sm:top-6 end-5 sm:end-6 text-[11px] font-medium text-gray-300 tabular-nums">
+              <span className="absolute top-5 sm:top-6 end-5 sm:end-6 text-[11px] font-medium text-[var(--text-muted)] tabular-nums">
                 {String(index + 1).padStart(2, '0')}
               </span>
               <div
                 className="flex items-center justify-center rounded-full w-11 h-11 mb-4"
-                style={{ backgroundColor: '#EDEDED' }}
+                style={{ backgroundColor: 'var(--chip)' }}
               >
-                <Icon size={18} className="text-gray-700" />
+                <Icon size={18} style={{ color: 'var(--primary)' }} />
               </div>
-              <h3 className="text-[15px] font-medium text-gray-900 mb-2">{tool.title[lang]}</h3>
-              <p className="text-[12.5px] text-gray-500 leading-relaxed mb-4 flex-1">{tool.description[lang]}</p>
+              <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-2">{tool.title[lang]}</h3>
+              <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-4 flex-1">
+                {tool.description[lang]}
+              </p>
               <a
                 href={tool.href}
-                className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-blue-500 border border-blue-400 rounded-full px-4 py-2 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all duration-200 group"
+                className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-[var(--primary)] border border-[rgba(var(--primary-rgb),0.4)] rounded-full px-4 py-2 hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] transition-all duration-200 group"
               >
                 {tool.cta[lang]}
                 <span className="transition-transform duration-200 group-hover:translate-x-0.5">{arrow}</span>

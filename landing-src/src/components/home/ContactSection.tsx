@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { apiFetch } from '../../lib/api';
 
@@ -13,7 +14,9 @@ const COPY = {
     send: 'إرسال',
     sending: 'جارٍ الإرسال...',
     success: 'تم الإرسال! هنتواصل معاك قريبًا.',
-    error: 'حصل خطأ، حاول تاني.'
+    error: 'حصل خطأ، حاول تاني.',
+    invalidEmail: 'صيغة البريد الإلكتروني غير صحيحة',
+    needContact: 'محتاج رقم جوال أو بريد إلكتروني على الأقل'
   },
   en: {
     formTitle: 'Need help or have a question?',
@@ -25,20 +28,40 @@ const COPY = {
     send: 'Send',
     sending: 'Sending...',
     success: "Sent! We'll be in touch soon.",
-    error: 'Something went wrong, please try again.'
+    error: 'Something went wrong, please try again.',
+    invalidEmail: 'That email address looks invalid',
+    needContact: 'Add a phone number or email so we can reach you'
   }
 };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function fieldClass(state: 'idle' | 'valid' | 'invalid') {
+  const base =
+    'w-full rounded-xl border px-4 py-3 text-[13px] transition-colors duration-200 focus-glow bg-[var(--bg)]';
+  if (state === 'valid') return `${base} border-emerald-300`;
+  if (state === 'invalid') return `${base} border-red-300`;
+  return `${base} border-[var(--line)]`;
+}
 
 export default function ContactSection() {
   const { lang } = useLanguage();
   const t = COPY[lang];
 
   const [form, setForm] = useState({ name: '', phone: '', email: '', message: '' });
+  const [touched, setTouched] = useState({ name: false, email: false });
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
+  const nameValid = form.name.trim().length > 0;
+  const emailValid = form.email.trim() === '' || EMAIL_RE.test(form.email.trim());
+  const hasContact = form.phone.trim() !== '' || form.email.trim() !== '';
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    setTouched({ name: true, email: true });
+    if (!nameValid || !emailValid) return;
+
     setStatus('sending');
     setErrorMessage('');
     try {
@@ -49,6 +72,7 @@ export default function ContactSection() {
       });
       setStatus('success');
       setForm({ name: '', phone: '', email: '', message: '' });
+      setTouched({ name: false, email: false });
     } catch (err) {
       setStatus('error');
       setErrorMessage(err instanceof Error ? err.message : t.error);
@@ -57,53 +81,87 @@ export default function ContactSection() {
 
   return (
     <section className="max-w-lg mx-auto px-5 sm:px-10 pb-20 sm:pb-28">
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8">
-        <h2 className="text-[1.2rem] font-medium text-gray-900 tracking-tight mb-1.5">{t.formTitle}</h2>
-        <p className="text-[12.5px] text-gray-400 mb-6">{t.formSubtitle}</p>
+      <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6 sm:p-8">
+        <h2 className="text-[1.2rem] font-bold text-[var(--text-primary)] tracking-tight mb-1.5">{t.formTitle}</h2>
+        <p className="text-[12.5px] text-[var(--text-secondary)] mb-6">{t.formSubtitle}</p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            type="text"
-            required
-            placeholder={t.name}
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[13px] focus:outline-none focus:border-blue-400"
-          />
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3">
+          <div>
+            <input
+              type="text"
+              placeholder={t.name}
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              onBlur={() => setTouched((tt) => ({ ...tt, name: true }))}
+              className={fieldClass(touched.name ? (nameValid ? 'valid' : 'invalid') : 'idle')}
+            />
+            {touched.name && !nameValid && (
+              <p className="flex items-center gap-1 text-[11.5px] text-red-500 mt-1.5">
+                <AlertCircle size={12} /> {t.name}
+              </p>
+            )}
+          </div>
+
           <input
             type="tel"
             placeholder={t.phone}
             value={form.phone}
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[13px] focus:outline-none focus:border-blue-400"
+            className={fieldClass('idle')}
             dir="ltr"
           />
-          <input
-            type="email"
-            placeholder={t.email}
-            value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[13px] focus:outline-none focus:border-blue-400"
-            dir="ltr"
-          />
+
+          <div>
+            <input
+              type="email"
+              placeholder={t.email}
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              onBlur={() => setTouched((tt) => ({ ...tt, email: true }))}
+              className={fieldClass(
+                touched.email && form.email ? (emailValid ? 'valid' : 'invalid') : 'idle'
+              )}
+              dir="ltr"
+            />
+            {touched.email && form.email && !emailValid && (
+              <p className="flex items-center gap-1 text-[11.5px] text-red-500 mt-1.5">
+                <AlertCircle size={12} /> {t.invalidEmail}
+              </p>
+            )}
+          </div>
+
           <textarea
             placeholder={t.message}
             value={form.message}
             onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
             rows={3}
-            className="w-full rounded-xl border border-gray-200 px-4 py-3 text-[13px] focus:outline-none focus:border-blue-400 resize-none"
+            className={`${fieldClass('idle')} resize-none`}
           />
+
+          {touched.name && nameValid && !hasContact && (
+            <p className="flex items-center gap-1 text-[11.5px] text-[var(--text-muted)]">
+              <AlertCircle size={12} /> {t.needContact}
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={status === 'sending'}
-            className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-blue-500 rounded-xl px-5 py-3 hover:bg-blue-600 transition-all duration-200 disabled:opacity-60 mt-1"
+            className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-5 py-3 hover:bg-[var(--primary-hover)] transition-all duration-200 disabled:opacity-60 mt-1"
           >
             {status === 'sending' ? t.sending : t.send}
           </button>
 
-          {status === 'success' && <p className="text-[12.5px] text-green-600 mt-1">{t.success}</p>}
-          {status === 'error' && <p className="text-[12.5px] text-red-600 mt-1">{errorMessage || t.error}</p>}
+          {status === 'success' && (
+            <p className="flex items-center gap-1.5 text-[12.5px] text-emerald-600 mt-1">
+              <CheckCircle2 size={14} /> {t.success}
+            </p>
+          )}
+          {status === 'error' && (
+            <p className="flex items-center gap-1.5 text-[12.5px] text-red-600 mt-1">
+              <AlertCircle size={14} /> {errorMessage || t.error}
+            </p>
+          )}
         </form>
       </div>
     </section>

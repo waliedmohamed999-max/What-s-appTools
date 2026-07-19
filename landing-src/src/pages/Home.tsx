@@ -2,6 +2,7 @@ import Nav from '../components/Nav';
 import Footer from '../components/Footer';
 import WhatsAppFloatButton from '../components/WhatsAppFloatButton';
 import Hero from '../components/home/Hero';
+import PlatformMarquee from '../components/home/PlatformMarquee';
 import StatsBar from '../components/home/StatsBar';
 import ToolsSection from '../components/home/ToolsSection';
 import HowItWorks from '../components/home/HowItWorks';
@@ -10,11 +11,12 @@ import ContactSection from '../components/home/ContactSection';
 
 export default function Home() {
   return (
-    <div className="bg-[#f0f0ee]">
+    <div className="bg-[var(--bg)]">
       <Hero>
         <Nav />
       </Hero>
 
+      <PlatformMarquee />
       <StatsBar />
       <ToolsSection />
       <HowItWorks />

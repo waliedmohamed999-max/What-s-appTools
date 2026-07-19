@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --bg: #f6f5f2;
+  --bg-rgb: 246, 245, 242;
+  --surface: #ffffff;
+  --surface-rgb: 255, 255, 255;
+  --line: rgba(15, 15, 20, 0.08);
+  --text-primary: #14141a;
+  --text-secondary: #6b6b76;
+  --text-muted: #9d9da5;
+  --primary: #3b5bfd;
+  --primary-hover: #2c47e0;
+  --primary-rgb: 59, 91, 253;
+  --accent: #7c5cff;
+  --accent-rgb: 124, 92, 255;
+  --chip: #edecea;
+}
+
+html {
+  font-family: 'Cairo', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer utilities {
+  .text-gradient {
+    background-image: linear-gradient(90deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .focus-glow:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
+  }
+
+  .pause-on-hover:hover .animate-marquee,
+  .pause-on-hover:hover .animate-marquee-reverse {
+    animation-play-state: paused;
+  }
+}

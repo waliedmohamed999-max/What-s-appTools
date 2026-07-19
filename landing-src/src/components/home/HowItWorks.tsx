@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 
 const STEPS = [
@@ -23,23 +24,55 @@ const COPY = {
 export default function HowItWorks() {
   const { lang } = useLanguage();
   const t = COPY[lang];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const refs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const index = refs.current.indexOf(entry.target as HTMLDivElement);
+          if (index !== -1) setActiveIndex(index);
+        });
+      },
+      { threshold: 0.6 }
+    );
+    refs.current.forEach((node) => node && observer.observe(node));
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <section className="bg-white border-y border-black/5">
+    <section className="bg-[var(--surface)] border-y border-[var(--line)]">
       <div className="max-w-5xl mx-auto px-5 sm:px-10 py-16 sm:py-20">
-        <h2 className="text-[1.4rem] sm:text-[1.6rem] font-medium text-gray-900 tracking-tight mb-2">{t.title}</h2>
-        <p className="text-[13px] text-gray-400 mb-8 sm:mb-10">{t.subtitle}</p>
+        <h2 className="text-[1.4rem] sm:text-[1.6rem] font-bold text-[var(--text-primary)] tracking-tight mb-2">
+          {t.title}
+        </h2>
+        <p className="text-[13px] text-[var(--text-secondary)] mb-8 sm:mb-10">{t.subtitle}</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6">
-          {STEPS.map((step, index) => (
-            <div key={step.en.title} className="relative">
-              <div className="text-[2rem] font-medium text-gray-100 leading-none mb-2 tabular-nums">
-                {String(index + 1).padStart(2, '0')}
+          {STEPS.map((step, index) => {
+            const active = index === activeIndex;
+            return (
+              <div
+                key={step.en.title}
+                ref={(node) => {
+                  refs.current[index] = node;
+                }}
+                className="relative transition-opacity duration-300"
+                style={{ opacity: active ? 1 : 0.45 }}
+              >
+                <div
+                  className="text-[2rem] font-extrabold leading-none mb-2 tabular-nums transition-colors duration-300"
+                  style={{ color: active ? 'var(--primary)' : 'var(--line)' }}
+                >
+                  {String(index + 1).padStart(2, '0')}
+                </div>
+                <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-1.5">{step[lang].title}</h3>
+                <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">{step[lang].body}</p>
               </div>
-              <h3 className="text-[14px] font-medium text-gray-900 mb-1.5">{step[lang].title}</h3>
-              <p className="text-[12.5px] text-gray-400 leading-relaxed">{step[lang].body}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
