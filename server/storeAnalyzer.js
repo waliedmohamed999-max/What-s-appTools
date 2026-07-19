@@ -2,6 +2,7 @@ const cheerio = require('cheerio');
 const dns = require('node:dns').promises;
 const net = require('node:net');
 const { Agent, fetch: undiciFetch } = require('undici');
+const { fetchPageSpeed } = require('./pageSpeed');
 
 const FETCH_TIMEOUT_MS = 8000;
 const ROBOTS_TIMEOUT_MS = 4000;
@@ -477,6 +478,17 @@ async function analyzeUrl(input) {
 
   const { score, categoryScores, issues } = scoreAnalysis(details);
 
+  // Real Core Web Vitals / Lighthouse scoring via Google's own PageSpeed Insights API —
+  // inert (returns null) until GOOGLE_PAGESPEED_API_KEY is configured. Runs independently
+  // of the heuristic scan above so a slow/failed PSI call never breaks the rest of the report.
+  let pageSpeed = null;
+  let pageSpeedError = null;
+  try {
+    pageSpeed = await fetchPageSpeed(finalUrl);
+  } catch (err) {
+    pageSpeedError = err.message;
+  }
+
   return {
     url: finalUrl,
     hostname: analyzedUrl.hostname,
@@ -485,7 +497,9 @@ async function analyzeUrl(input) {
     score,
     categoryScores,
     issues,
-    details
+    details,
+    pageSpeed,
+    pageSpeedError
   };
 }
 

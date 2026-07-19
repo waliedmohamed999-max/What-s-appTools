@@ -19,6 +19,16 @@ type Issue = { severity: 'high' | 'medium' | 'low'; message: string };
 
 type CategoryScores = { seo: number; technical: number; trust: number; social: number };
 
+type Metric = { value: number | null; displayValue: string; rating: 'good' | 'needs-improvement' | 'poor' | null };
+
+type PageSpeedResult = {
+  strategy: string;
+  scores: { performance: number | null; seo: number | null; accessibility: number | null; bestPractices: number | null };
+  metrics: { lcp: Metric | null; cls: Metric | null; tbt: Metric | null; fcp: Metric | null; speedIndex: Metric | null; ttfb: Metric | null };
+  fieldData: Record<string, { value: number; category: string }> | null;
+  fetchedAt: string;
+};
+
 type AnalysisResult = {
   url: string;
   hostname: string;
@@ -29,6 +39,8 @@ type AnalysisResult = {
   previousScore: number | null;
   scoreDelta: number | null;
   issues: Issue[];
+  pageSpeed: PageSpeedResult | null;
+  pageSpeedError: string | null;
   details: {
     title: string;
     metaDescription: string;
@@ -74,6 +86,90 @@ function scoreColor(score: number) {
   if (score >= 80) return { text: 'text-emerald-600', ring: '#10b981', bar: 'bg-emerald-500' };
   if (score >= 50) return { text: 'text-amber-600', ring: '#f59e0b', bar: 'bg-amber-500' };
   return { text: 'text-red-600', ring: '#ef4444', bar: 'bg-red-500' };
+}
+
+const METRIC_LABELS: { key: keyof PageSpeedResult['metrics']; label: string }[] = [
+  { key: 'lcp', label: 'LCP — أكبر عنصر مرئي / Largest Contentful Paint' },
+  { key: 'cls', label: 'CLS — ثبات التخطيط / Cumulative Layout Shift' },
+  { key: 'tbt', label: 'TBT — زمن الحجب الكلي / Total Blocking Time' },
+  { key: 'fcp', label: 'FCP — أول عنصر مرئي / First Contentful Paint' },
+  { key: 'speedIndex', label: 'Speed Index' },
+  { key: 'ttfb', label: 'TTFB — زمن أول استجابة / Time to First Byte' }
+];
+
+const SCORE_LABELS: { key: keyof PageSpeedResult['scores']; label: string }[] = [
+  { key: 'performance', label: 'الأداء / Performance' },
+  { key: 'seo', label: 'SEO' },
+  { key: 'accessibility', label: 'سهولة الوصول / Accessibility' },
+  { key: 'bestPractices', label: 'أفضل الممارسات / Best Practices' }
+];
+
+function ratingColor(rating: Metric['rating']) {
+  if (rating === 'good') return { text: 'text-emerald-600', dot: 'bg-emerald-500' };
+  if (rating === 'poor') return { text: 'text-red-600', dot: 'bg-red-500' };
+  if (rating === 'needs-improvement') return { text: 'text-amber-600', dot: 'bg-amber-500' };
+  return { text: 'text-[var(--text-muted)]', dot: 'bg-[var(--text-muted)]' };
+}
+
+function PageSpeedCard({ pageSpeed }: { pageSpeed: PageSpeedResult }) {
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-[14px] font-medium text-[var(--text-primary)]">
+          سرعة الموقع (Google PageSpeed Insights)
+        </h3>
+        <span className="text-[10.5px] text-[var(--text-muted)]">Mobile</span>
+      </div>
+      <p className="text-[11.5px] text-[var(--text-muted)] mb-5">
+        نفس القياس والمنهجية اللي بتشوفها في pagespeed.web.dev
+      </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        {SCORE_LABELS.map(({ key, label }) => {
+          const value = pageSpeed.scores[key];
+          if (value === null) return null;
+          const c = scoreColor(value);
+          return (
+            <div key={key} className="text-center">
+              <div
+                className="mx-auto flex items-center justify-center rounded-full w-14 h-14 border-4 mb-2"
+                style={{ borderColor: c.ring }}
+              >
+                <span className={`text-[15px] font-semibold ${c.text}`}>{value}</span>
+              </div>
+              <p className="text-[11px] text-[var(--text-secondary)]">{label}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {METRIC_LABELS.map(({ key, label }) => {
+          const metric = pageSpeed.metrics[key];
+          if (!metric || metric.value === null) return null;
+          const c = ratingColor(metric.rating);
+          return (
+            <div
+              key={key}
+              className="flex items-center justify-between gap-3 bg-[var(--bg)] border border-[var(--line)] rounded-xl px-3.5 py-2.5"
+            >
+              <span className="text-[11.5px] text-[var(--text-secondary)]">{label}</span>
+              <span className={`flex items-center gap-1.5 text-[12px] font-medium shrink-0 ${c.text}`}>
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                {metric.displayValue}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {pageSpeed.fieldData && (
+        <p className="text-[11px] text-[var(--text-muted)] mt-4">
+          * يشمل بيانات حقيقية من مستخدمين فعليين زاروا هذا الموقع عبر Chrome (Chrome UX Report)، بالإضافة للقياس المخبري أعلاه.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function IssueIcon({ severity }: { severity: Issue['severity'] }) {
@@ -186,6 +282,13 @@ export default function StoreAnalyzer() {
               )}
             </div>
           </div>
+
+          {result.pageSpeed && <PageSpeedCard pageSpeed={result.pageSpeed} />}
+          {!result.pageSpeed && result.pageSpeedError && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 text-[12.5px] rounded-xl px-4 py-3">
+              قياس سرعة Google غير متاح مؤقتًا لهذا الرابط، باقي نتائج التحليل أدناه سليمة.
+            </div>
+          )}
 
           <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6">
             <h3 className="text-[14px] font-medium text-[var(--text-primary)] mb-4">التقييم حسب الفئة / Score Breakdown</h3>

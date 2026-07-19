@@ -109,6 +109,12 @@ const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
 const LEAD_NOTIFY_EMAIL = process.env.LEAD_NOTIFY_EMAIL || 'info@dms1t.com';
 
+// Google PageSpeed Insights API key for real Core Web Vitals / Lighthouse scoring in
+// Store Analyzer. Empty by default — Store Analyzer falls back to its own lightweight
+// HTML heuristics until this is set. Free key: console.cloud.google.com > enable
+// "PageSpeed Insights API" > Credentials > Create API Key.
+const GOOGLE_PAGESPEED_API_KEY = process.env.GOOGLE_PAGESPEED_API_KEY || '';
+
 module.exports = {
   PORT,
   DATA_DIR,
@@ -136,5 +142,6 @@ module.exports = {
   SMTP_USER,
   SMTP_PASS,
   SMTP_FROM,
-  LEAD_NOTIFY_EMAIL
+  LEAD_NOTIFY_EMAIL,
+  GOOGLE_PAGESPEED_API_KEY
 };

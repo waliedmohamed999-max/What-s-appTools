@@ -219,6 +219,18 @@ history list is exportable as Excel.
 Internal/private addresses (localhost, 127.0.0.1, private IP ranges) are rejected to avoid the
 server being used to probe your own network.
 
+**Real Google PageSpeed Insights scoring (optional):** set `GOOGLE_PAGESPEED_API_KEY` in `.env` and
+every analysis additionally calls Google's own PageSpeed Insights API (`server/pageSpeed.js`) —
+the same Lighthouse run and Core Web Vitals thresholds as pagespeed.web.dev, not an approximation:
+mobile-strategy Performance/SEO/Accessibility/Best Practices scores (0–100) plus LCP, CLS, TBT, FCP,
+Speed Index, and TTFB, each rated good/needs-improvement/poor using Google's published thresholds,
+and real Chrome-user field data (CrUX) when Google has enough traffic for that origin to report it.
+Get a free key at console.cloud.google.com (enable "PageSpeed Insights API" → Credentials → Create
+API Key; free tier is 25,000 requests/day). Leave it unset and Store Analyzer works exactly as
+before — the PSI card just doesn't render. A PSI call takes several seconds and runs independently
+of the heuristic scan above, so a slow or failed PSI request never blocks or breaks the rest of
+the report.
+
 API: `POST /api/store-analysis/analyze` with `{ "url": "..." }`, `GET /api/store-analysis/history`,
 `GET /api/store-analysis/history.xlsx`.
 
@@ -380,6 +392,7 @@ server/
   mailer.js                      Emails new leads via SMTP (inert until SMTP_HOST is set)
   sendHistory.js                  WhatsApp campaign history: aggregates data/logs.json by batch
   storeAnalyzer.js             Store Analyzer: fetch + parse + category-scored audit of a URL
+  pageSpeed.js                   Store Analyzer: real Google PageSpeed Insights scoring (optional)
   storeAnalysisHistory.js       Store Analyzer: per-host analysis history + score delta
   campaignPlanStore.js           Campaign Budget Planner: CRUD over data/campaign-plans.json + Excel export
   database.js                     SQLite setup (data/app.db) — users, meta_connections, content_posts
