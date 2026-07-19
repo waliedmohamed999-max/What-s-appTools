@@ -236,6 +236,25 @@ into the form, or exported as an Excel breakdown per plan.
 
 API: `GET/POST /api/campaign-plans`, `DELETE /api/campaign-plans/:id`, `GET /api/campaign-plans/:id/export.xlsx`.
 
+## Landing page (`/`)
+
+The home page (`landing-src/src/pages/Home.tsx`) has a language toggle (`EN`/`عربي` button in the
+nav) that switches the whole landing page + Products page between Arabic and English, sets
+`dir="rtl"`/`"ltr"` on `<html>`, and remembers the choice in `localStorage`. It's implemented via
+`LanguageContext` (`landing-src/src/context/LanguageContext.tsx`) — the four tool pages themselves
+(WhatsApp Sender, Store Analyzer, Campaign Calculator, Content Scheduler) still show Arabic and
+English together inline everywhere rather than toggling, that's a separate, larger job.
+
+Below the hero, each of the four tools gets its own card with a plain-language explanation and a
+button straight into it. Below that is a contact form (name, phone/WhatsApp, optional email/message)
+that posts to `POST /api/leads`, rate-limited to 10 submissions per IP per 15 minutes. Submissions
+are appended to `data/leads.json` — there is no API route to read them back (leads can include
+personal contact info, and per the access model above nothing on this server requires a login), so
+view them by reading that file directly on the server (SSH/Docker exec/Render shell).
+
+A floating WhatsApp button (bottom-right, every page) opens a chat with `+966509095816` via
+`wa.me` — the number lives in `landing-src/src/components/WhatsAppFloatButton.tsx`.
+
 ## Access model
 
 There is no login screen — DMS has no accounts to register or sign into. Every request is attributed
@@ -351,6 +370,7 @@ server/
   sendEngine.js               Background bulk-send queue (delays, batching, cancel, results export)
   templateStore.js             WhatsApp message templates: CRUD over data/message-templates.json
   contactListStore.js           WhatsApp saved contact lists: CRUD over data/contact-lists.json
+  leadStore.js                   Landing page contact form submissions: data/leads.json
   sendHistory.js                  WhatsApp campaign history: aggregates data/logs.json by batch
   storeAnalyzer.js             Store Analyzer: fetch + parse + category-scored audit of a URL
   storeAnalysisHistory.js       Store Analyzer: per-host analysis history + score delta
@@ -368,12 +388,13 @@ public/       Served as-is by Express — this is what actually runs
 landing-src/  Source for the landing page (React + TypeScript + Tailwind + Vite + React Router) —
               not served directly; its build output is copied into public/
   src/pages/    Home, Products, StoreAnalyzer, CampaignCalculator, ContentScheduler
-  src/components/  Shared Nav, Logo, PageShell, BackLink
+  src/components/  Shared Nav, Logo, PageShell, BackLink, WhatsAppFloatButton
+  src/context/     LanguageContext (AR/EN toggle, persisted, sets html dir/lang)
 uploads/      Temporary Excel files and message/post attachments (gitignored)
 sessions/     whatsapp-web.js LocalAuth session data (gitignored)
 data/         app.db (SQLite — owner row, meta connections, content posts), logs.json,
-              store-analyses.json, campaign-plans.json, message-templates.json, contact-lists.json
-              — all gitignored (app.db holds live Meta access tokens)
+              store-analyses.json, campaign-plans.json, message-templates.json, contact-lists.json,
+              leads.json — all gitignored (app.db holds live Meta access tokens)
 templates/    Sample Excel template
 ```
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Nav from './Nav';
+import WhatsAppFloatButton from './WhatsAppFloatButton';
 
 export default function PageShell({
   children,
@@ -12,6 +13,7 @@ export default function PageShell({
     <div className="min-h-screen bg-[#f0f0ee]">
       <Nav sticky />
       <main className={`${maxWidth} mx-auto px-5 sm:px-10 pt-8 sm:pt-16 pb-20`}>{children}</main>
+      <WhatsAppFloatButton />
     </div>
   );
 }

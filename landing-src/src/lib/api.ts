@@ -38,14 +38,3 @@ export async function readJson<T>(res: Response): Promise<T> {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return readJson<T>(await fetch(path, init));
 }
-
-export function safeNextPath(value: string | null, fallback = '/products') {
-  if (!value || !value.startsWith('/') || /[\\\u0000-\u001f]/.test(value)) return fallback;
-  try {
-    const target = new URL(value, window.location.origin);
-    if (target.origin !== window.location.origin) return fallback;
-    return `${target.pathname}${target.search}${target.hash}`;
-  } catch (err) {
-    return fallback;
-  }
-}

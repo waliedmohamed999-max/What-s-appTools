@@ -21,8 +21,33 @@ const auth = require('./auth');
 const templateStore = require('./templateStore');
 const sendHistory = require('./sendHistory');
 const contactListStore = require('./contactListStore');
+const leadStore = require('./leadStore');
 
 const app = express();
+const rateLimitBuckets = new Map();
+
+// Generic per-IP rate limiter for public, unauthenticated write endpoints (e.g. the
+// landing page contact form) so a script can't flood the leads store.
+function rateLimit({ windowMs, max }) {
+  return (req, res, next) => {
+    const now = Date.now();
+    if (rateLimitBuckets.size > 5000) {
+      for (const [key, entry] of rateLimitBuckets) {
+        if (entry.resetAt <= now) rateLimitBuckets.delete(key);
+      }
+    }
+    const key = req.ip;
+    const current = rateLimitBuckets.get(key);
+    const entry = !current || current.resetAt <= now ? { count: 0, resetAt: now + windowMs } : current;
+    entry.count += 1;
+    rateLimitBuckets.set(key, entry);
+    if (entry.count > max) {
+      res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+      return res.status(429).json({ error: 'محاولات كثيرة، حاول لاحقاً / Too many attempts; try again later' });
+    }
+    next();
+  };
+}
 
 app.disable('x-powered-by');
 app.set('trust proxy', config.TRUST_PROXY ? 1 : false);
@@ -237,6 +262,17 @@ app.get('/api/health', (req, res) => {
     persistentStorageConfigured: Boolean(process.env.STORAGE_DIR),
     storageWritable
   });
+});
+
+// Landing page contact form. Public and unauthenticated by design (see "Access model" in
+// README) — rate-limited per IP since it's a write endpoint anyone can reach.
+app.post('/api/leads', rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), async (req, res) => {
+  try {
+    const lead = await leadStore.createLead(req.body || {});
+    res.json({ ok: true, lead: { id: lead.id } });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // DMS is a single-owner toolkit with no login screen: every request below is attributed
