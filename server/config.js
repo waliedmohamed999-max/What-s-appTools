@@ -98,6 +98,17 @@ if (META_PUBLIC_BASE_URL) {
 // signing secret is supplied.
 const MEDIA_SIGNING_SECRET = process.env.MEDIA_SIGNING_SECRET || META_APP_SECRET;
 
+// SMTP credentials for emailing landing-page contact-form leads. Empty by default —
+// leads still save to data/leads.json either way; email notification stays inert
+// until these are filled in. See README > "Landing page" for setup steps.
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = envInt('SMTP_PORT', 587);
+const SMTP_SECURE = envBool('SMTP_SECURE', SMTP_PORT === 465);
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+const LEAD_NOTIFY_EMAIL = process.env.LEAD_NOTIFY_EMAIL || 'info@dms1t.com';
+
 module.exports = {
   PORT,
   DATA_DIR,
@@ -118,5 +129,12 @@ module.exports = {
   META_REDIRECT_URI,
   META_GRAPH_VERSION,
   META_PUBLIC_BASE_URL,
-  MEDIA_SIGNING_SECRET
+  MEDIA_SIGNING_SECRET,
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_SECURE,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_FROM,
+  LEAD_NOTIFY_EMAIL
 };

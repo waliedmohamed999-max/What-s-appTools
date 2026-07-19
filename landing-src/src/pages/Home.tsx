@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { MessageCircle, Search, Calculator, CalendarClock } from 'lucide-react';
 import Nav from '../components/Nav';
+import Footer from '../components/Footer';
 import WhatsAppFloatButton from '../components/WhatsAppFloatButton';
 import { useLanguage } from '../context/LanguageContext';
 import { apiFetch } from '../lib/api';
@@ -272,6 +273,7 @@ export default function Home() {
         </div>
       </section>
 
+      <Footer />
       <WhatsAppFloatButton />
     </div>
   );

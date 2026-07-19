@@ -22,6 +22,7 @@ const templateStore = require('./templateStore');
 const sendHistory = require('./sendHistory');
 const contactListStore = require('./contactListStore');
 const leadStore = require('./leadStore');
+const mailer = require('./mailer');
 
 const app = express();
 const rateLimitBuckets = new Map();
@@ -270,6 +271,11 @@ app.post('/api/leads', rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), async (
   try {
     const lead = await leadStore.createLead(req.body || {});
     res.json({ ok: true, lead: { id: lead.id } });
+    // Fire-and-forget: the lead is already saved, so a slow/failed SMTP send
+    // must not delay or fail the response to the visitor.
+    mailer.sendLeadNotification(lead).catch((err) => {
+      console.error('Failed to email lead notification:', err.message);
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

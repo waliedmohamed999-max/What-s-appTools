@@ -252,6 +252,12 @@ are appended to `data/leads.json` — there is no API route to read them back (l
 personal contact info, and per the access model above nothing on this server requires a login), so
 view them by reading that file directly on the server (SSH/Docker exec/Render shell).
 
+Each new lead is also emailed to `LEAD_NOTIFY_EMAIL` (`info@dms1t.com` by default) via `server/mailer.js`,
+**once you configure SMTP** — set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` in `.env` (see
+`.env.example`). Until `SMTP_HOST` is set, email sending stays inert and leads only save to
+`data/leads.json`, same as before. Email failures never block the form — the lead is already saved
+by the time the email is attempted, and a send failure is only logged server-side.
+
 A floating WhatsApp button (bottom-right, every page) opens a chat with `+966509095816` via
 `wa.me` — the number lives in `landing-src/src/components/WhatsAppFloatButton.tsx`.
 
@@ -371,6 +377,7 @@ server/
   templateStore.js             WhatsApp message templates: CRUD over data/message-templates.json
   contactListStore.js           WhatsApp saved contact lists: CRUD over data/contact-lists.json
   leadStore.js                   Landing page contact form submissions: data/leads.json
+  mailer.js                      Emails new leads via SMTP (inert until SMTP_HOST is set)
   sendHistory.js                  WhatsApp campaign history: aggregates data/logs.json by batch
   storeAnalyzer.js             Store Analyzer: fetch + parse + category-scored audit of a URL
   storeAnalysisHistory.js       Store Analyzer: per-host analysis history + score delta
