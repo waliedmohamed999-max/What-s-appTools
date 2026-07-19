@@ -81,7 +81,7 @@ export default function ToolsSection() {
           return (
             <div
               key={tool.href}
-              className="relative bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-5 sm:p-6 flex flex-col hover:border-[rgba(var(--primary-rgb),0.4)] hover:shadow-[0_12px_32px_-16px_rgba(var(--primary-rgb),0.35)] transition-all duration-200"
+              className="glass-panel relative rounded-2xl p-5 sm:p-6 flex flex-col hover:border-[rgba(var(--primary-rgb),0.35)] hover:shadow-[0_16px_36px_-16px_rgba(var(--primary-rgb),0.35)] transition-all duration-200"
             >
               <span className="absolute top-5 sm:top-6 end-5 sm:end-6 text-[11px] font-medium text-[var(--text-muted)] tabular-nums">
                 {String(index + 1).padStart(2, '0')}

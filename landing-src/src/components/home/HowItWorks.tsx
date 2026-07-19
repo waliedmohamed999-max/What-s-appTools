@@ -43,7 +43,7 @@ export default function HowItWorks() {
   }, []);
 
   return (
-    <section className="bg-[var(--surface)] border-y border-[var(--line)]">
+    <section className="glass-panel border-y border-white/40">
       <div className="max-w-5xl mx-auto px-5 sm:px-10 py-16 sm:py-20">
         <h2 className="text-[1.4rem] sm:text-[1.6rem] font-bold text-[var(--text-primary)] tracking-tight mb-2">
           {t.title}
@@ -60,11 +60,11 @@ export default function HowItWorks() {
                   refs.current[index] = node;
                 }}
                 className="relative transition-opacity duration-300"
-                style={{ opacity: active ? 1 : 0.45 }}
+                style={{ opacity: active ? 1 : 0.55 }}
               >
                 <div
-                  className="text-[2rem] font-extrabold leading-none mb-2 tabular-nums transition-colors duration-300"
-                  style={{ color: active ? 'var(--primary)' : 'var(--line)' }}
+                  className="glass-chip flex items-center justify-center rounded-full w-12 h-12 mb-3 text-[15px] font-extrabold tabular-nums transition-colors duration-300"
+                  style={{ color: active ? 'var(--primary)' : 'var(--text-muted)' }}
                 >
                   {String(index + 1).padStart(2, '0')}
                 </div>

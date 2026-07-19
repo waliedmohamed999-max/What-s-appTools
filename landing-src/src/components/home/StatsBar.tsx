@@ -11,7 +11,7 @@ const STATS = [
 function Stat({ value, label }: { value: string; label: string }) {
   const { ref, display } = useCountUp(value);
   return (
-    <div ref={ref} className="text-center sm:text-start">
+    <div ref={ref} className="glass-panel rounded-2xl px-4 py-6 text-center">
       <div className="text-[1.75rem] sm:text-[2rem] font-extrabold text-[var(--text-primary)] tracking-tight tabular-nums">
         {display}
       </div>
@@ -24,8 +24,8 @@ export default function StatsBar() {
   const { lang } = useLanguage();
 
   return (
-    <section className="bg-[var(--surface)]">
-      <div className="max-w-5xl mx-auto px-5 sm:px-10 py-8 sm:py-10 grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-4">
+    <section className="max-w-5xl mx-auto px-5 sm:px-10 py-10 sm:py-14">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {STATS.map((stat) => (
           <Stat key={stat.label.en} value={stat.value} label={stat.label[lang]} />
         ))}

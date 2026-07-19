@@ -16,7 +16,7 @@ export default function PlatformMarquee() {
   const animation = lang === 'ar' ? 'animate-marquee-reverse' : 'animate-marquee';
 
   return (
-    <section className="bg-[var(--surface)] border-y border-[var(--line)] py-8 sm:py-10">
+    <section className="glass-panel border-y border-white/40 py-8 sm:py-10">
       <p className="text-center text-[12px] text-[var(--text-muted)] mb-5 px-5">{COPY[lang]}</p>
       <div className="pause-on-hover overflow-hidden">
         <div className={`flex w-max gap-12 sm:gap-16 ${animation}`}>
