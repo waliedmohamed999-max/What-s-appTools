@@ -227,8 +227,15 @@ that fetches on demand via `POST /api/store-analysis/pagespeed`), LCP/CLS/TBT/FC
 Index/TTFB each rated good/needs-improvement/poor against Google's published thresholds, a ranked
 **Opportunities** list (the specific fixes with the biggest estimated time savings — unused
 JS/CSS, unminified assets, next-gen image formats, etc.), a pass/fail **Core Web Vitals
-Assessment** banner when Google has real Chrome-user (CrUX) field data for that origin, and the
-field data itself when available. Both PSI routes are rate-limited (20 requests / 15 min / IP) —
+Assessment** banner when Google has real Chrome-user (CrUX) field data for that origin, the field
+data itself when available, the **loading filmstrip** (the same page-loading thumbnail sequence
+shown on a real report), and a full **diagnostics breakdown for every category** — Performance,
+Accessibility, Best Practices, and SEO each get an expandable section grouping every failed audit
+by Lighthouse's own category groups (e.g. Accessibility → "Names and labels" / "Navigation" / "Best
+practices"), plus passed/not-applicable/manual-review counts — mirroring pagespeed.web.dev's
+structure exactly, using Lighthouse's own audit titles (English; translating the full audit corpus
+reliably wasn't practical, unlike the curated Arabic/English labels used for the Opportunities
+list). Both PSI routes are rate-limited (20 requests / 15 min / IP) —
 this site has no login, and a configured key has a metered daily quota (free tier: 25,000
 requests/day) an anonymous visitor could otherwise burn through. Get a free key at
 console.cloud.google.com (enable "PageSpeed Insights API" → Credentials → Create API Key). Leave

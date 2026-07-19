@@ -119,6 +119,82 @@ function extractOpportunities(audits) {
   return opportunities.sort((a, b) => b.savingsMs - a.savingsMs).slice(0, 6);
 }
 
+// Audit IDs already surfaced elsewhere in the report (as a core metric or an
+// Opportunity) — excluded from the generic Performance diagnostics list so nothing
+// is shown twice.
+const ALREADY_SURFACED = new Set([
+  'largest-contentful-paint',
+  'cumulative-layout-shift',
+  'total-blocking-time',
+  'first-contentful-paint',
+  'speed-index',
+  'server-response-time',
+  ...Object.keys(OPPORTUNITY_LABELS)
+]);
+
+// Mirrors how a real PSI report groups every audit in a category: failed audits
+// (the ones worth acting on) shown first, then counts of passed / not-applicable /
+// needs-manual-review audits — same structure as the "X passed audits" collapsed
+// rows on pagespeed.web.dev, just without Google's own translated audit copy (that's
+// hundreds of strings we can't reliably translate here, so we keep Lighthouse's own
+// English title/description, which is what the API actually returns).
+function extractDiagnostics(categoryKey, categories, categoryGroups, audits, excludeIds = new Set()) {
+  const category = categories?.[categoryKey];
+  if (!category) return null;
+
+  const groups = new Map();
+  let passedCount = 0;
+  let notApplicableCount = 0;
+  let manualCount = 0;
+
+  for (const ref of category.auditRefs || []) {
+    if (excludeIds.has(ref.id)) continue;
+    const audit = audits?.[ref.id];
+    if (!audit) continue;
+
+    if (audit.scoreDisplayMode === 'notApplicable') {
+      notApplicableCount += 1;
+      continue;
+    }
+    if (audit.scoreDisplayMode === 'manual') {
+      manualCount += 1;
+      continue;
+    }
+    if (audit.scoreDisplayMode === 'informative') continue;
+    if (audit.score === 1) {
+      passedCount += 1;
+      continue;
+    }
+    // Lighthouse's internal "hidden"/ungrouped bucket isn't part of the visible
+    // report structure on pagespeed.web.dev — skip rather than show an untitled group.
+    const groupTitle = ref.group ? categoryGroups?.[ref.group]?.title : null;
+    if (!groupTitle) continue;
+    const groupId = ref.group;
+    if (!groups.has(groupId)) groups.set(groupId, { id: groupId, title: groupTitle, audits: [] });
+    groups.get(groupId).audits.push({
+      id: ref.id,
+      title: audit.title,
+      description: audit.description || '',
+      displayValue: audit.displayValue || ''
+    });
+  }
+
+  return {
+    groups: Array.from(groups.values()).filter((g) => g.audits.length > 0),
+    passedCount,
+    notApplicableCount,
+    manualCount
+  };
+}
+
+// Lighthouse's loading filmstrip — the row of page-loading thumbnails shown on a real
+// PSI report, straight from the same base64 JPEG data Google's own UI renders.
+function extractFilmstrip(audits) {
+  const items = audits?.['screenshot-thumbnails']?.details?.items;
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return items.map((item) => ({ timing: item.timing, data: item.data }));
+}
+
 async function fetchPageSpeed(url, strategy = 'mobile') {
   if (!config.GOOGLE_PAGESPEED_API_KEY) return null;
 
@@ -139,8 +215,10 @@ async function fetchPageSpeed(url, strategy = 'mobile') {
     }
 
     const categories = body?.lighthouseResult?.categories || {};
+    const categoryGroups = body?.lighthouseResult?.categoryGroups || {};
     const audits = body?.lighthouseResult?.audits || {};
     const fieldData = extractFieldData(body?.loadingExperience);
+    const opportunities = extractOpportunities(audits);
 
     return {
       strategy,
@@ -158,7 +236,20 @@ async function fetchPageSpeed(url, strategy = 'mobile') {
         speedIndex: extractMetric(audits, 'speed-index', 'speedIndex'),
         ttfb: extractMetric(audits, 'server-response-time', 'ttfb')
       },
-      opportunities: extractOpportunities(audits),
+      opportunities,
+      filmstrip: extractFilmstrip(audits),
+      diagnostics: {
+        performance: extractDiagnostics(
+          'performance',
+          categories,
+          categoryGroups,
+          audits,
+          new Set([...ALREADY_SURFACED, ...opportunities.map((o) => o.id)])
+        ),
+        accessibility: extractDiagnostics('accessibility', categories, categoryGroups, audits),
+        bestPractices: extractDiagnostics('best-practices', categories, categoryGroups, audits),
+        seo: extractDiagnostics('seo', categories, categoryGroups, audits)
+      },
       fieldData,
       coreWebVitalsAssessment: assessCoreWebVitals(fieldData),
       fetchedAt: new Date().toISOString()

@@ -10,7 +10,8 @@ import {
   TrendingUp,
   TrendingDown,
   Download,
-  CheckCircle2
+  CheckCircle2,
+  ChevronDown
 } from 'lucide-react';
 import PageShell from '../components/PageShell';
 import BackLink from '../components/BackLink';
@@ -24,11 +25,23 @@ type Metric = { value: number | null; displayValue: string; rating: 'good' | 'ne
 
 type Opportunity = { id: string; title: string; savingsMs: number; displayValue: string };
 
+type DiagnosticAudit = { id: string; title: string; description: string; displayValue: string };
+type DiagnosticGroup = { id: string; title: string | null; audits: DiagnosticAudit[] };
+type Diagnostics = {
+  groups: DiagnosticGroup[];
+  passedCount: number;
+  notApplicableCount: number;
+  manualCount: number;
+} | null;
+type FilmstripFrame = { timing: number; data: string };
+
 type PageSpeedResult = {
   strategy: 'mobile' | 'desktop';
   scores: { performance: number | null; seo: number | null; accessibility: number | null; bestPractices: number | null };
   metrics: { lcp: Metric | null; cls: Metric | null; tbt: Metric | null; fcp: Metric | null; speedIndex: Metric | null; ttfb: Metric | null };
   opportunities: Opportunity[];
+  filmstrip: FilmstripFrame[] | null;
+  diagnostics: { performance: Diagnostics; accessibility: Diagnostics; bestPractices: Diagnostics; seo: Diagnostics };
   fieldData: Record<string, { value: number; category: string }> | null;
   coreWebVitalsAssessment: 'pass' | 'fail' | null;
   fetchedAt: string;
@@ -118,6 +131,91 @@ function ratingColor(rating: Metric['rating']) {
 
 function formatSavings(ms: number) {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`;
+}
+
+function Filmstrip({ frames }: { frames: FilmstripFrame[] }) {
+  return (
+    <div className="mb-6">
+      <h4 className="text-[12.5px] font-medium text-[var(--text-primary)] mb-3">
+        تسلسل التحميل / Loading filmstrip
+      </h4>
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {frames.map((frame, i) => (
+          <div key={i} className="shrink-0">
+            <img
+              src={`data:image/jpeg;base64,${frame.data}`}
+              alt={`${(frame.timing / 1000).toFixed(1)}s`}
+              className="w-16 h-auto rounded-md border border-[var(--line)]"
+            />
+            <p className="text-[9.5px] text-[var(--text-muted)] text-center mt-1">
+              {(frame.timing / 1000).toFixed(1)}s
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategoryDiagnostics({ label, diagnostics }: { label: string; diagnostics: Diagnostics }) {
+  const [open, setOpen] = useState(false);
+  if (!diagnostics) return null;
+
+  const failedCount = diagnostics.groups.reduce((sum, g) => sum + g.audits.length, 0);
+
+  return (
+    <div className="border border-[var(--line)] rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-[var(--bg)] text-start"
+      >
+        <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{label}</span>
+        <span className="flex items-center gap-2 shrink-0">
+          {failedCount > 0 && <span className="text-[11px] text-amber-600">{failedCount} للمراجعة</span>}
+          <ChevronDown
+            size={15}
+            className={`text-[var(--text-muted)] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-4 py-3 space-y-4">
+          {diagnostics.groups.map((group) => (
+            <div key={group.id}>
+              {group.title && (
+                <h5 className="text-[11px] font-medium text-[var(--text-muted)] mb-2">{group.title}</h5>
+              )}
+              <ul className="space-y-2">
+                {group.audits.map((audit) => (
+                  <li key={audit.id} className="flex items-start gap-2 text-[12px]">
+                    <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[var(--text-secondary)]">{audit.title}</p>
+                      {audit.displayValue && (
+                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{audit.displayValue}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+
+          <div className="flex items-center gap-1.5 text-[11.5px] text-emerald-600 pt-1">
+            <CheckCircle2 size={13} />
+            {diagnostics.passedCount} عملية تدقيق ناجحة / audits passed
+          </div>
+          {diagnostics.manualCount > 0 && (
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {diagnostics.manualCount} عنصر يحتاج مراجعة يدوية / items need manual review
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PageSpeedCard({ pageSpeed: initial, url }: { pageSpeed: PageSpeedResult; url: string }) {
@@ -215,6 +313,8 @@ function PageSpeedCard({ pageSpeed: initial, url }: { pageSpeed: PageSpeedResult
         })}
       </div>
 
+      {pageSpeed.filmstrip && <Filmstrip frames={pageSpeed.filmstrip} />}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         {METRIC_LABELS.map(({ key, label }) => {
           const metric = pageSpeed.metrics[key];
@@ -255,6 +355,13 @@ function PageSpeedCard({ pageSpeed: initial, url }: { pageSpeed: PageSpeedResult
           </ul>
         </div>
       )}
+
+      <div className="space-y-3 mt-6">
+        <CategoryDiagnostics label="تشخيصات الأداء / Performance diagnostics" diagnostics={pageSpeed.diagnostics.performance} />
+        <CategoryDiagnostics label="سهولة الوصول / Accessibility" diagnostics={pageSpeed.diagnostics.accessibility} />
+        <CategoryDiagnostics label="أفضل الممارسات / Best Practices" diagnostics={pageSpeed.diagnostics.bestPractices} />
+        <CategoryDiagnostics label="SEO" diagnostics={pageSpeed.diagnostics.seo} />
+      </div>
 
       {pageSpeed.fieldData && (
         <p className="text-[11px] text-[var(--text-muted)] mt-4">
