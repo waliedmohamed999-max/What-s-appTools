@@ -83,10 +83,7 @@ export default function Products() {
           const cardBody = (
             <>
               <div className="flex items-start justify-between mb-4">
-                <div
-                  className="flex items-center justify-center rounded-full w-11 h-11"
-                  style={{ backgroundColor: 'var(--chip)' }}
-                >
+                <div className="glass-chip flex items-center justify-center rounded-full w-11 h-11">
                   <Icon size={18} className="text-[var(--text-secondary)]" />
                 </div>
                 <ArrowUpRight

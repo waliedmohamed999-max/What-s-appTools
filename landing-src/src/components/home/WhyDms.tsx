@@ -95,8 +95,9 @@ export default function WhyDms() {
                 }}
               >
                 <span
-                  className="flex items-center justify-center rounded-full w-8 h-8 shrink-0 transition-colors duration-200"
-                  style={{ backgroundColor: isActive ? 'var(--chip)' : 'transparent' }}
+                  className={`flex items-center justify-center rounded-full w-8 h-8 shrink-0 transition-all duration-200 ${
+                    isActive ? 'glass-chip' : ''
+                  }`}
                 >
                   <Icon size={15} style={{ color: isActive ? 'var(--primary)' : 'var(--text-muted)' }} />
                 </span>
@@ -112,10 +113,7 @@ export default function WhyDms() {
         </div>
 
         <div className="lg:col-span-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-8 flex flex-col justify-center min-h-[180px]">
-          <div
-            className="flex items-center justify-center rounded-full w-12 h-12 mb-4"
-            style={{ backgroundColor: 'var(--chip)' }}
-          >
+          <div className="glass-chip flex items-center justify-center rounded-full w-12 h-12 mb-4">
             <ActiveIcon size={20} style={{ color: 'var(--primary)' }} />
           </div>
           <h3 className="text-[16px] font-semibold text-[var(--text-primary)] mb-2">

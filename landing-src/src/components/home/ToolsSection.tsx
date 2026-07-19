@@ -86,10 +86,7 @@ export default function ToolsSection() {
               <span className="absolute top-5 sm:top-6 end-5 sm:end-6 text-[11px] font-medium text-[var(--text-muted)] tabular-nums">
                 {String(index + 1).padStart(2, '0')}
               </span>
-              <div
-                className="flex items-center justify-center rounded-full w-11 h-11 mb-4"
-                style={{ backgroundColor: 'var(--chip)' }}
-              >
+              <div className="glass-chip flex items-center justify-center rounded-full w-11 h-11 mb-4">
                 <Icon size={18} style={{ color: tool.brandColor || 'var(--primary)' }} />
               </div>
               <h3 className="text-[15px] font-semibold text-[var(--text-primary)] mb-2">{tool.title[lang]}</h3>

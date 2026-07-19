@@ -99,8 +99,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(59, 91, 253, 0.1), rgba(124, 92, 255, 0.06));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 18px -12px rgba(20, 20, 26, 0.2);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 0.85rem;
