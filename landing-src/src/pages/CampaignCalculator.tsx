@@ -191,7 +191,7 @@ export default function CampaignCalculator() {
               min={0}
               value={totalBudget}
               onChange={(e) => setTotalBudget(clampNumber(e.target.value, 0, 1_000_000_000))}
-              className="mt-1 w-full rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+              className="mt-1 w-full rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] text-[var(--text-primary)] focus-glow"
             />
           </label>
           <label className="text-[12px] text-[var(--text-secondary)]">
@@ -201,7 +201,7 @@ export default function CampaignCalculator() {
               min={1}
               value={durationDays}
               onChange={(e) => setDurationDays(clampNumber(e.target.value, 1, 3650, true))}
-              className="mt-1 w-full rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+              className="mt-1 w-full rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] text-[var(--text-primary)] focus-glow"
             />
           </label>
           <label className="text-[12px] text-[var(--text-secondary)]">
@@ -211,7 +211,7 @@ export default function CampaignCalculator() {
               min={0}
               value={aov}
               onChange={(e) => setAov(clampNumber(e.target.value, 0, 100_000_000))}
-              className="mt-1 w-full rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+              className="mt-1 w-full rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] text-[var(--text-primary)] focus-glow"
             />
           </label>
         </div>
@@ -266,7 +266,7 @@ export default function CampaignCalculator() {
                     max={100}
                     value={row.pct}
                     onChange={(e) => updateChannel(i, { pct: clampNumber(e.target.value, 0, 100) })}
-                    className="mt-1 w-full rounded-lg px-2 py-2 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+                    className="mt-1 w-full rounded-lg px-2 py-2 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus-glow"
                   />
                 </label>
                 <label className="text-[11px] text-[var(--text-muted)]">
@@ -277,7 +277,7 @@ export default function CampaignCalculator() {
                     step={0.1}
                     value={row.cpc}
                     onChange={(e) => updateChannel(i, { cpc: clampNumber(e.target.value, 0, 1_000_000) })}
-                    className="mt-1 w-full rounded-lg px-2 py-2 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+                    className="mt-1 w-full rounded-lg px-2 py-2 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus-glow"
                   />
                 </label>
                 <label className="text-[11px] text-[var(--text-muted)]">
@@ -290,7 +290,7 @@ export default function CampaignCalculator() {
                     onChange={(e) =>
                       updateChannel(i, { conversionRate: clampNumber(e.target.value, 0, 100) })
                     }
-                    className="mt-1 w-full rounded-lg px-2 py-2 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+                    className="mt-1 w-full rounded-lg px-2 py-2 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus-glow"
                   />
                 </label>
               </div>
@@ -330,12 +330,12 @@ export default function CampaignCalculator() {
             value={planName}
             onChange={(e) => setPlanName(e.target.value)}
             placeholder="اسم الخطة (مثال: حملة رمضان) / Plan name"
-            className="flex-1 rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus:outline-none focus:border-[var(--primary-soft)]"
+            className="flex-1 rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus-glow"
           />
           <button
             onClick={savePlan}
             disabled={saving}
-            className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-2.5 hover:bg-[var(--primary-hover)] transition-colors duration-200 disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-2.5 shadow-[0_8px_20px_-10px_rgba(var(--primary-rgb),0.6)] hover:bg-[var(--primary-hover)] hover:shadow-[0_10px_24px_-8px_rgba(var(--primary-rgb),0.7)] transition-all duration-200 disabled:opacity-60 disabled:shadow-none"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             حفظ / Save

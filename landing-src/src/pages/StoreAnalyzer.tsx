@@ -139,13 +139,13 @@ export default function StoreAnalyzer() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://yourstore.com"
-          className="flex-1 rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] bg-[var(--surface)] focus:outline-none focus:border-[var(--primary-soft)]"
+          className="flex-1 rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] bg-[var(--surface)] focus-glow"
           required
         />
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-3 hover:bg-[var(--primary-hover)] transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-3 shadow-[0_8px_20px_-10px_rgba(var(--primary-rgb),0.6)] hover:bg-[var(--primary-hover)] hover:shadow-[0_10px_24px_-8px_rgba(var(--primary-rgb),0.7)] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
         >
           {loading && <Loader2 size={14} className="animate-spin" />}
           {loading ? 'جارٍ التحليل... Analyzing' : 'تحليل / Analyze'}

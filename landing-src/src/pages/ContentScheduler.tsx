@@ -349,7 +349,7 @@ export default function ContentScheduler() {
         </div>
         <button
           onClick={() => (showForm ? setShowForm(false) : startCreate())}
-          className="shrink-0 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-white bg-[var(--primary)] rounded-xl px-4 py-2.5 hover:bg-[var(--primary-hover)] transition-colors duration-200"
+          className="shrink-0 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-white bg-[var(--primary)] rounded-xl px-4 py-2.5 shadow-[0_8px_20px_-10px_rgba(var(--primary-rgb),0.6)] hover:bg-[var(--primary-hover)] hover:shadow-[0_10px_24px_-8px_rgba(var(--primary-rgb),0.7)] transition-all duration-200"
         >
           {showForm ? <X size={14} /> : <Plus size={14} />}
           {showForm ? 'إغلاق / Close' : 'منشور جديد / New Post'}
@@ -384,7 +384,7 @@ export default function ContentScheduler() {
             <select
               value={selectedMetaPageId}
               onChange={(event) => setSelectedMetaPageId(event.target.value)}
-              className="mt-1 w-full rounded-lg px-3 py-2.5 border border-[var(--line)] bg-[var(--surface)] text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+              className="mt-1 w-full rounded-lg px-3 py-2.5 border border-[var(--line)] bg-[var(--surface)] text-[13px] text-[var(--text-primary)] focus-glow"
             >
               {metaStatus.pages?.map((page) => (
                 <option key={page.id} value={page.id}>
@@ -512,7 +512,7 @@ export default function ContentScheduler() {
               onChange={(e) => setCaption(e.target.value)}
               rows={4}
               placeholder="اكتب نص المنشور... / Write your caption..."
-              className="w-full rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus:outline-none focus:border-[var(--primary-soft)]"
+              className="w-full rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus-glow"
               required
             />
             {strictestLimit !== null && (
@@ -530,7 +530,7 @@ export default function ContentScheduler() {
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                className="mt-1 block rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary-soft)]"
+                className="mt-1 block rounded-lg px-3 py-3 border border-[var(--line)] text-[16px] sm:text-[12.5px] text-[var(--text-primary)] focus-glow"
               />
             </label>
 
@@ -560,7 +560,7 @@ export default function ContentScheduler() {
           <button
             type="submit"
             disabled={submitting || overLimit}
-            className="inline-flex items-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-2.5 hover:bg-[var(--primary-hover)] transition-colors duration-200 disabled:opacity-60"
+            className="inline-flex items-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-2.5 shadow-[0_8px_20px_-10px_rgba(var(--primary-rgb),0.6)] hover:bg-[var(--primary-hover)] hover:shadow-[0_10px_24px_-8px_rgba(var(--primary-rgb),0.7)] transition-all duration-200 disabled:opacity-60 disabled:shadow-none"
           >
             {submitting && <Loader2 size={14} className="animate-spin" />}
             {editingId ? 'حفظ التعديل / Save Changes' : 'حفظ المنشور / Save Post'}
