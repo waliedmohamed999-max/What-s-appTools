@@ -260,7 +260,20 @@ pacing table** for the campaign's duration.
 Plans can be **named and saved** (`data/campaign-plans.json`) for later comparison, reloaded back
 into the form, or exported as an Excel breakdown per plan.
 
-API: `GET/POST /api/campaign-plans`, `DELETE /api/campaign-plans/:id`, `GET /api/campaign-plans/:id/export.xlsx`.
+**AI marketing plan generator (optional):** set `ANTHROPIC_API_KEY` in `.env` and a "Generate
+Marketing Plan" section appears — enter a brand name (plus optional industry, target audience, and
+tone), and Claude (`server/marketingPlan.js`, model `claude-opus-4-8`, structured JSON output)
+writes a strategy summary, one concrete recommendation per channel, 4-6 ready-to-copy social posts,
+and a suggested posting timeline — all grounded in the **exact budget split already calculated
+above** (the prompt is given the real per-channel SAR amounts, not asked to invent its own). Output
+language matches the page (Arabic). This calls a paid API per request and the site has no login, so
+the route is rate-limited (10 requests / 15 min / IP). Leave `ANTHROPIC_API_KEY` unset and the
+button stays visible but returns a clear "not enabled" message instead of generating a plan — the
+rest of the planner (budget math, saving, Excel export) is unaffected either way. Get a key at
+console.anthropic.com (paid — no free tier).
+
+API: `GET/POST /api/campaign-plans`, `DELETE /api/campaign-plans/:id`, `GET /api/campaign-plans/:id/export.xlsx`,
+`POST /api/campaign-plans/marketing-plan`.
 
 ## Landing page (`/`)
 
@@ -409,6 +422,7 @@ server/
   pageSpeed.js                   Store Analyzer: real Google PageSpeed Insights scoring (optional)
   storeAnalysisHistory.js       Store Analyzer: per-host analysis history + score delta
   campaignPlanStore.js           Campaign Budget Planner: CRUD over data/campaign-plans.json + Excel export
+  marketingPlan.js                Campaign Budget Planner: AI plan/post generator via Claude (optional)
   database.js                     SQLite setup (data/app.db) — users, meta_connections, content_posts
   auth.js                          Auto-provisions the single owner row (no login/passwords)
   contentStore.js                    Social Content Scheduler: per-user CRUD over SQLite

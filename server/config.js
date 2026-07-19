@@ -115,6 +115,12 @@ const LEAD_NOTIFY_EMAIL = process.env.LEAD_NOTIFY_EMAIL || 'info@dms1t.com';
 // "PageSpeed Insights API" > Credentials > Create API Key.
 const GOOGLE_PAGESPEED_API_KEY = process.env.GOOGLE_PAGESPEED_API_KEY || '';
 
+// Anthropic (Claude) API key for the Campaign Budget Planner's AI marketing-plan
+// generator. Empty by default — the button stays visible but returns a clear
+// "not enabled" message until this is set. Get a key at console.anthropic.com >
+// Account > API Keys.
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
+
 module.exports = {
   PORT,
   DATA_DIR,
@@ -143,5 +149,6 @@ module.exports = {
   SMTP_PASS,
   SMTP_FROM,
   LEAD_NOTIFY_EMAIL,
-  GOOGLE_PAGESPEED_API_KEY
+  GOOGLE_PAGESPEED_API_KEY,
+  ANTHROPIC_API_KEY
 };

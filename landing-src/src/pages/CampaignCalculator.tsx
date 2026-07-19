@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Save, Download, Trash2, FolderOpen, Loader2 } from 'lucide-react';
+import { RefreshCw, Save, Download, Trash2, FolderOpen, Loader2, Sparkles, Copy, Check } from 'lucide-react';
 import PageShell from '../components/PageShell';
 import BackLink from '../components/BackLink';
 import { apiFetch, apiUrl } from '../lib/api';
 
 type Channel = { name: string; pct: number; cpc: number; conversionRate: number };
+
+type MarketingPlanPost = { platform: string; hook: string; caption: string };
+type MarketingPlanChannelRec = { channel: string; recommendation: string };
+type MarketingPlan = {
+  summary: string;
+  channelRecommendations: MarketingPlanChannelRec[];
+  posts: MarketingPlanPost[];
+  timeline: string;
+};
 
 type ChannelRow = Channel & {
   channelBudget: number;
@@ -51,6 +60,15 @@ export default function CampaignCalculator() {
   const [planName, setPlanName] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  const [brand, setBrand] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [audience, setAudience] = useState('');
+  const [tone, setTone] = useState('');
+  const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [planGenError, setPlanGenError] = useState('');
+  const [marketingPlan, setMarketingPlan] = useState<MarketingPlan | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const pctSum = channels.reduce((sum, c) => sum + c.pct, 0);
 
@@ -169,6 +187,48 @@ export default function CampaignCalculator() {
       await loadPlans();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'تعذر حذف الخطة / Could not delete plan');
+    }
+  }
+
+  async function generateMarketingPlan() {
+    setPlanGenError('');
+    if (!brand.trim()) {
+      setPlanGenError('الرجاء إدخال اسم العلامة التجارية / Please enter a brand name');
+      return;
+    }
+    setGeneratingPlan(true);
+    setMarketingPlan(null);
+    try {
+      const result = await apiFetch<MarketingPlan>('/api/campaign-plans/marketing-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand,
+          industry,
+          audience,
+          tone,
+          language: 'ar',
+          totalBudget,
+          durationDays,
+          aov,
+          channels: rows.map((r) => ({ name: r.name, pct: r.pct, channelBudget: r.channelBudget }))
+        })
+      });
+      setMarketingPlan(result);
+    } catch (err) {
+      setPlanGenError(err instanceof Error ? err.message : 'تعذر إنشاء الخطة / Could not generate the plan');
+    } finally {
+      setGeneratingPlan(false);
+    }
+  }
+
+  async function copyCaption(text: string, index: number) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex((i) => (i === index ? null : i)), 2000);
+    } catch (err) {
+      /* clipboard access denied — nothing to do */
     }
   }
 
@@ -320,6 +380,126 @@ export default function CampaignCalculator() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6 mb-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Sparkles size={16} className="text-[var(--primary)]" />
+          <h3 className="text-[14px] font-medium text-[var(--text-primary)]">
+            خطة تسويقية بالذكاء الاصطناعي / AI Marketing Plan
+          </h3>
+        </div>
+        <p className="text-[11.5px] text-[var(--text-muted)] mb-4">
+          هنستخدم توزيع الميزانية اللي فوق ونقترحلك استراتيجية ومنشورات جاهزة للنشر مبنية على أرقامك فعليًا.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <input
+            type="text"
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            placeholder="اسم العلامة التجارية / Brand name"
+            className="rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus-glow"
+          />
+          <input
+            type="text"
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
+            placeholder="المجال أو المنتج (اختياري) / Industry or product"
+            className="rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus-glow"
+          />
+          <input
+            type="text"
+            value={audience}
+            onChange={(e) => setAudience(e.target.value)}
+            placeholder="الجمهور المستهدف (اختياري) / Target audience"
+            className="rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus-glow"
+          />
+          <input
+            type="text"
+            value={tone}
+            onChange={(e) => setTone(e.target.value)}
+            placeholder="نبرة الحديث (اختياري) / Tone of voice"
+            className="rounded-xl px-4 py-3 border border-[var(--line)] text-[16px] sm:text-[13px] focus-glow"
+          />
+        </div>
+
+        <button
+          onClick={generateMarketingPlan}
+          disabled={generatingPlan}
+          className="inline-flex items-center justify-center gap-2 text-[13px] font-medium text-white bg-[var(--primary)] rounded-xl px-6 py-2.5 shadow-[0_8px_20px_-10px_rgba(var(--primary-rgb),0.6)] hover:bg-[var(--primary-hover)] hover:shadow-[0_10px_24px_-8px_rgba(var(--primary-rgb),0.7)] transition-all duration-200 disabled:opacity-60 disabled:shadow-none"
+        >
+          {generatingPlan ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {generatingPlan ? 'جارٍ إنشاء الخطة... قد تستغرق نصف دقيقة / Generating…' : 'إنشاء خطة تسويقية / Generate Plan'}
+        </button>
+
+        {planGenError && <p className="text-[12px] text-amber-600 mt-3">{planGenError}</p>}
+
+        {marketingPlan && (
+          <div className="mt-6 space-y-5">
+            <div>
+              <h4 className="text-[12.5px] font-medium text-[var(--text-primary)] mb-1.5">
+                الملخص الاستراتيجي / Strategy Summary
+              </h4>
+              <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">{marketingPlan.summary}</p>
+            </div>
+
+            {marketingPlan.channelRecommendations.length > 0 && (
+              <div>
+                <h4 className="text-[12.5px] font-medium text-[var(--text-primary)] mb-2">
+                  توصيات لكل قناة / Per-Channel Recommendations
+                </h4>
+                <ul className="space-y-2">
+                  {marketingPlan.channelRecommendations.map((rec, i) => (
+                    <li key={i} className="bg-[var(--bg)] border border-[var(--line)] rounded-xl px-3.5 py-2.5">
+                      <p className="text-[12px] font-medium text-[var(--text-primary)] mb-0.5">{rec.channel}</p>
+                      <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{rec.recommendation}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {marketingPlan.posts.length > 0 && (
+              <div>
+                <h4 className="text-[12.5px] font-medium text-[var(--text-primary)] mb-2">
+                  أفكار منشورات جاهزة / Ready-to-Post Ideas
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {marketingPlan.posts.map((post, i) => (
+                    <div key={i} className="bg-[var(--bg)] border border-[var(--line)] rounded-xl p-3.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="inline-flex items-center rounded-full bg-[var(--chip)] px-2.5 py-1 text-[10.5px] font-medium text-[var(--text-secondary)]">
+                          {post.platform}
+                        </span>
+                        <button
+                          onClick={() => copyCaption(post.caption, i)}
+                          title="نسخ / Copy"
+                          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
+                        >
+                          {copiedIndex === i ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                        </button>
+                      </div>
+                      <p className="text-[12.5px] font-medium text-[var(--text-primary)] mb-1">{post.hook}</p>
+                      <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
+                        {post.caption}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {marketingPlan.timeline && (
+              <div>
+                <h4 className="text-[12.5px] font-medium text-[var(--text-primary)] mb-1.5">
+                  الجدول الزمني المقترح / Suggested Timeline
+                </h4>
+                <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">{marketingPlan.timeline}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6 mb-5">

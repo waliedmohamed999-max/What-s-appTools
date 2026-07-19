@@ -16,6 +16,7 @@ const { fetchPageSpeed } = require('./pageSpeed');
 const storeAnalysisHistory = require('./storeAnalysisHistory');
 const contentStore = require('./contentStore');
 const campaignPlanStore = require('./campaignPlanStore');
+const marketingPlan = require('./marketingPlan');
 const metaAuth = require('./metaAuth');
 const metaPublish = require('./metaPublish');
 const auth = require('./auth');
@@ -543,6 +544,26 @@ app.post('/api/campaign-plans', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+// Costs real money per call and this site has no login — rate-limited so an
+// anonymous visitor can't run up the Anthropic bill.
+app.post(
+  '/api/campaign-plans/marketing-plan',
+  rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }),
+  async (req, res) => {
+    try {
+      const plan = await marketingPlan.generateMarketingPlan(req.body || {});
+      if (!plan) {
+        return res
+          .status(503)
+          .json({ error: 'مولّد الخطة التسويقية غير مفعّل / Marketing plan generator is not enabled' });
+      }
+      res.json(plan);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
 
 app.delete('/api/campaign-plans/:id', async (req, res) => {
   try {
